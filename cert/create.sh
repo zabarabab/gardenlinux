@@ -1,6 +1,9 @@
 #!/bin/bash
 
+thisDir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
 sudo apt-get install golang-cfssl
+
+pushd ${thisDir}
 
 rename () {
 	rm -f $1.csr
@@ -21,8 +24,9 @@ fi
 
 cfssl gencert -ca intermediate1.crt -ca-key intermediate1.key -config profile.json -profile=sign kernel.json | cfssljson -bare kernel
 rename kernel intermediate1
-openssl pkcs12 -export -out kernel.p12 -inkey kernel.key -in kernel.crt
+openssl pkcs12 -export -out kernel.p12 -inkey kernel.key -in kernel.crt -passout pass:\"\"
 #cfssl gencert -ca intermediate1.crt -ca-key intermediate1.key -config profile.json -profile=server webroot.json | cfssljson -bare webroot
 #rename webroot intermediate1
 
 #rm *.crt *.key intermediate1-* root-*
+popd

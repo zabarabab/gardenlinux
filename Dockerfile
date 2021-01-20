@@ -19,6 +19,8 @@ RUN	apt-get update \
 		libcap2-bin \
 		python3 \
 		python3-mako \
+                binutils \
+                sbsigntool \
 		qemu-user-static \
 		qemu-utils \
 		cpio \

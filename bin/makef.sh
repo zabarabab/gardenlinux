@@ -60,6 +60,10 @@ while true; do
     esac
 done
 
+mkdir certdir
+openssl pkcs12 -in /kernel.p12 -out certdir/kernel.key -nodes -nocerts -passin pass:\"\"
+openssl pkcs12 -in /kernel.p12 -out certdir/kernel.crt -nodes -nokeys -passin pass:\"\"
+
 IFS="," read -r -a grub_target <<< "$target"
 
 raw_image=${1}.raw
@@ -87,7 +91,7 @@ loopback=$(losetup -f --show ${raw_image})
 echo "### using ${loopback}"
 echo 'label: gpt
 type=21686148-6449-6E6F-744E-656564454649, name="BIOS", size=1MiB
-type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI", size=16MiB
+type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B, name="EFI", size=32MiB
 type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="USR", size=1GiB
 type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="ROOT"' | sfdisk $loopback --no-reread --no-tell-kernel
 losetup -d $loopback
@@ -214,7 +218,16 @@ for t in "${grub_target[@]}"
 do
     case "$t" in
         bios) chroot ${dir_name} grub-install --recheck --target=i386-pc $loopback;;
-        uefi) chroot ${dir_name} grub-install --recheck --target=x86_64-efi --no-nvram  $loopback ;;
+        uefi) echo -n "root=LABEL=ROOT console=ttyS0,115200 console=tty0 earlyprintk=ttyS0,115200 consoleblank=0" > kernel-command-line.txt
+	      mkdir -p ${dir_name}/boot/efi/EFI/Linux
+	      /usr/bin/objcopy \
+    		--add-section .osrel="${dir_name}/etc/os-release" --change-section-vma .osrel=0x20000 \
+    		--add-section .cmdline="kernel-command-line.txt" --change-section-vma .cmdline=0x30000 \
+   		--add-section .linux="${dir_name}/boot/vmlinuz-5.4.0-6-cloud-amd64" --change-section-vma .linux=0x2000000 \
+    		--add-section .initrd="${dir_name}/boot/initrd.img-5.4.0-6-cloud-amd64" --change-section-vma .initrd=0x3000000 \
+    		"${dir_name}/usr/lib/systemd/boot/efi/linuxx64.efi.stub" "linux.efi"
+	      sbsign --key "certdir/kernel.key" --cert "certdir/kernel.crt" --output "${dir_name}/boot/efi/EFI/Linux/linux.efi" "linux.efi";
+	      ;;
         *) echo "Unknown target ${t}";;
     esac
 done

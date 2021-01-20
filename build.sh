@@ -81,6 +81,7 @@ dockerArgs="--hostname garden-build
 	${securityArgs[*]}
 	${envArgs[*]/#/-e }
 	--volume ${thisDir}:/opt/gardenlinux
+	--volume ${thisDir}/cert/kernel.p12:/kernel.p12
 	--mount type=bind,source=/dev,target=/dev"
 
 [ $lessram ] || dockerArgs+=" --tmpfs /tmp:dev,exec,suid,noatime"

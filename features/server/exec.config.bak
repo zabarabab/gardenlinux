@@ -1,0 +1,37 @@
+systemctl enable systemd-networkd
+systemctl enable systemd-timesyncd
+systemctl enable systemd-resolved
+systemctl enable ssh-keygen
+systemctl enable tmp.mount
+#systemctl enable ssh-moduli
+
+for i in $(ls /boot | grep vmlinuz | sed "s/vmlinuz-//"); do
+	systemctl enable kexec-load@$i
+done
+
+update-ca-certificates
+addgroup --system wheel
+
+ln -sf /bin/ip /usr/bin/ip
+sed -i "s/#RuntimeWatchdogSec=0/RuntimeWatchdogSec=20s/g" /etc/systemd/system.conf
+
+chmod 0440 /etc/sudoers.d/wheel
+
+# removing berkelydb
+wget -P /tmp http://18.185.215.86/packages/{iproute2_5.9.0-1.1,libpam-modules-bin_1.3.1-5.1,libpam-modules_1.3.1-5.1,libsasl2-modules-db_2.1.27+dfsg-2.1,libsasl2-2_2.1.27+dfsg-2.1,python3.8_3.8.6-1.1,python3.8-minimal_3.8.6-1.1,libpython3.8-minimal_3.8.6-1.1,libpython3.8-stdlib_3.8.6-1.1,coreutils_8.32-4.1,dracut-core_050+65-2}_amd64.deb http://18.185.215.86/packages/dracut_050+65-2_all.deb
+
+apt-get install -y --allow-downgrades -f /tmp/libpam-modules-bin_1.3.1-5.1_amd64.deb /tmp/libpam-modules_1.3.1-5.1_amd64.deb
+apt-get install -y --allow-downgrades -f /tmp/iproute2_5.9.0-1.1_amd64.deb
+apt-get install -y --allow-downgrades -f /tmp/{python3.8_3.8.6-1.1,python3.8-minimal_3.8.6-1.1,libpython3.8-stdlib_3.8.6-1.1,libpython3.8-minimal_3.8.6-1.1}_amd64.deb
+apt-get install -y --allow-downgrades -f /tmp/{libsasl2-modules-db_2.1.27+dfsg-2.1,libsasl2-2_2.1.27+dfsg-2.1}_amd64.deb
+apt-get install -y --allow-downgrades -f /tmp/{dracut_050+65-2_all,dracut-core_050+65-2_amd64}.deb
+apt-get install -y --allow-downgrades -f /tmp/coreutils_8.32-4.1_amd64.deb
+rm -f /tmp/*.deb
+
+echo "### Deleting libdb forcefully"
+#apt-get autoremove --purge -y libdb5.3
+
+# fix file system permissions for higher security
+chmod u-s /sbin/mount.nfs /sbin/mount.cifs /bin/umount /bin/mount
+chmod g-w / /etc/hosts
+

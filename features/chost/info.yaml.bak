@@ -1,0 +1,7 @@
+description: 'host for container and kubernetes workloads (containerd)'
+type: 'modifier'
+features:
+  include:
+    - server
+  exclude:
+    - vhost

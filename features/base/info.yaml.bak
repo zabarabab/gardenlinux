@@ -1,0 +1,30 @@
+description: "base layer (debootstap --variant minbase, see docker:debian:xx-slim)"
+type: something
+features:
+  include: [ _slim ]
+tar:
+  include-dev: false
+execute:
+  - garden-init:
+      _priority: 1
+      _description: "initialize"
+      merged-usr: true
+      arch:       $arch
+      keyring:    $keyring
+      variant:    minbase
+      features:   $features
+      suite:      $suite
+      suiteports: $suiteports
+      epoch:      $timestamp
+      bootstrap:  $debootstrap
+  - garden-config:
+      _priority: 10
+      _description: "running all exec chroot"
+  - garden-stamp:
+      _priority: 20
+      _description: "stamping os-release in"
+  - garden-tar:
+      _priority: 100
+      _desctiption: "generating rootfs.tar"
+      include-dev: false
+      

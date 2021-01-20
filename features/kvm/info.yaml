@@ -3,11 +3,24 @@ type: platform
 features:
   include: 
     - cloud
-disk:
-  boot: 
-    - efi
-    - mbr
-convert:
+scripts:
+    - name: garden-disk
+      boot: 
+        - efi
+      label: msdos
+      output: aa.xx
+
+---
+scripts:
+    - name: garden-disk
+      setargs:
+        label: gpt
+      appendargs:
+        boot:
+        - mbr
+      output: aa.yy
+
+garden-convert:
   format: 
     - type: raw
     - type: qcow2

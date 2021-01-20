@@ -1,0 +1,10 @@
+apt-get update
+apt-get dist-upgrade -y
+apt-get install docker.io systemd-cron 
+apt-get autoremove --purge -y python python-minimal python2 python2-minimal python2.7 python2.7-minimal libpython2.7-stdlib libpython2.7-minimal libpython2-stdlib libpython-stdlib python-boto python-certifi python-chardet python-idna python-pkg-resources python-requests python-six python-urllib3 rsyslog reportbug cron chrony rsyslog
+
+systemctl enable systemd-timesyncd
+systemctl start systemd-timesyncd
+rm /etc/*-
+systemctl enable systemd-resolved
+systemctl start systemd-resolved

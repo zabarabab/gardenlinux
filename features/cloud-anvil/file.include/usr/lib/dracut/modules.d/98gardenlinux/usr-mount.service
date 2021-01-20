@@ -14,3 +14,4 @@ Type=oneshot
 ExecStart=/bin/usr-mount.sh
 KillMode=process
 RemainAfterExit=yes
+OOMScoreAdjust=-1000

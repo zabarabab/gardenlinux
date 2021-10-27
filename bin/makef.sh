@@ -219,7 +219,8 @@ chroot ${dir_name} syslinux -d syslinux -i "$loopback"p1
 echo "### systemd-boot"
 chroot ${dir_name} bootctl --no-variables --make-machine-id-directory=no install
 
-#chroot ${dir_name} /usr/local/sbin/update-bootloaders
+echo "### labeling for selinux"
+chroot ${dir_name} /sbin/setfiles -p -F -q /etc/selinux/default/contexts/files/file_contexts / /usr
 
 echo "### unmouting"
 umount -R ${dir_name}

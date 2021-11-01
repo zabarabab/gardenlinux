@@ -16,4 +16,29 @@ mksquashfs "$rootfs" "$targetBaseDir/root.squashfs" -comp lzo
 
 (cd "$targetBaseDir"; sha256sum root.squashfs | awk '{ print $1 }' > root.squashfs.sha256sum)
 
-(cd "$targetBaseDir"; echo -e "root.squashfs.sha256sum" | cpio -H newc -o | xz --check=crc32 >> rootfs.initrd) 
+cp "${targetBaseDir}/rootfs.initrd" "${targetBaseDir}/rootfs.initrd.squash"
+(cd "$targetBaseDir"; echo -e "root.squashfs.sha256sum" | cpio -H newc -o | xz --check=crc32 >> rootfs.initrd)
+(cd "$targetBaseDir"; echo -e "root.squashfs" | cpio -H newc -o | xz --check=crc32 >> rootfs.initrd.squash)
+
+#TODO: consider chrooting and directly use dracut to generate the unified images
+
+#TODO: this needs to be fixed, this is currently for demo purposes ONLY, support custom gl.url
+pxeserver="10.0.2.2"
+echo "gl.url=http://${pxeserver}:8888/root.squashfs gl.live=1 ip=dhcp console=ttyS0 gl.ovl=/:tmpfs" > "${targetBase}.cmdline"
+/usr/bin/objcopy \
+	--add-section .osrel="${rootfs}/etc/os-release" --change-section-vma .osrel=0x20000 \
+	--add-section .cmdline="${targetBase}.cmdline" --change-section-vma .cmdline=0x30000 \
+	--add-section .linux="${targetBase}.vmlinuz" --change-section-vma .linux=0x2000000 \
+	--add-section .initrd="${targetBase}.initrd" --change-section-vma .initrd=0x3000000 \
+	"${rootfs}/usr/lib/systemd/boot/efi/linuxx64.efi.stub" "${targetBase}.linux.unified"
+sbsign --key "/kernel.key" --cert "/kernel.crt" --output "${targetBase}.linux.signed" "${targetBase}.linux.unified";
+
+# bake the squashfs in as well, this is probably a bad idea
+echo "gl.live=1 ip=dhcp console=ttyS0 gl.ovl=/:tmpfs" > "${targetBase}.cmdline.squash"
+/usr/bin/objcopy \
+	--add-section .osrel="${rootfs}/etc/os-release" --change-section-vma .osrel=0x20000 \
+	--add-section .cmdline="${targetBase}.cmdline.squash" --change-section-vma .cmdline=0x30000 \
+	--add-section .linux="${targetBase}.vmlinuz" --change-section-vma .linux=0x2000000 \
+	--add-section .initrd="${targetBase}.initrd.squash" --change-section-vma .initrd=0x3000000 \
+	"${rootfs}/usr/lib/systemd/boot/efi/linuxx64.efi.stub" "${targetBase}.linux.unified.squash"
+sbsign --key "/kernel.key" --cert "/kernel.crt" --output "${targetBase}.linux.squash.signed" "${targetBase}.linux.unified.squash";

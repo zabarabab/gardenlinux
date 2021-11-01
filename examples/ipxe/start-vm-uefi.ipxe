@@ -1,0 +1,8 @@
+#!ipxe
+
+set pxeserver IPADDRESSGOESHERE 
+set pxepath PATHGOESHERE 
+set port 8888
+
+kernel http://${pxeserver}:${port}/${pxepath}/rootfs.linux.signed
+boot

@@ -8,8 +8,13 @@ type warn >/dev/null 2>&1 || . /lib/dracut-lib.sh
 shaFile="/root.squashfs.sha256sum"
 squashFile="/tmp/root.squashfs"
 
-# download squashfs
+# if squashfs is bundled into the initrd, just move it to /run
+if [ -f /root.squashfs ]; then
+	mv /root.squashfs /run/root.squashfs
+	exit 0
+fi
 
+# download squashfs
 url=$(getarg gl.url=)
 if [ -z "${url#gl.url=}" ]; then
 	info "gl.url not defined, skipping"

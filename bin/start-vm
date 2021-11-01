@@ -23,6 +23,7 @@ bridge=
 daemonize=
 pxe=
 pxefile=$thisDir/../examples/ipxe/start-vm.ipxe
+pxefileuefi=$thisDir/../examples/ipxe/start-vm-uefi.ipxe
 portbase=2223
 port=$portbase; while ss -tul | grep :$port &> /dev/null; do (( ++port )); done
 uefi=
@@ -201,12 +202,28 @@ fi
 
 # pxe
 if [ $pxe ]; then
-	[ -e "$targetDir/$mac.ipxe" ] || cp $pxefile $targetDir/$mac.ipxe
+	if [ $uefi ]; then
+		[ -e "$targetDir/$mac.ipxe" ] || cp $pxefileuefi $targetDir/$mac.ipxe
+	else
+		[ -e "$targetDir/$mac.ipxe" ] || cp $pxefile $targetDir/$mac.ipxe
+	fi
 
 	# modify the boot.ipxe to load the proper kernel and initramfs
 	sed -i "s/PATHGOESHERE//g;s/IPADDRESSGOESHERE/10.0.2.2/g" $targetDir/$mac.ipxe
 	
 	virtOpts+=( -boot order=nc )
+	containerName=$(cat /proc/sys/kernel/random/uuid)
+	function stop(){
+		echo "stopping helper for pxe"
+		docker stop -t 0 $1
+		echo "everything stopped..."
+	}
+	trap 'stop $containerName' EXIT
+	echo "starting helper container"
+	docker run -it --rm -d -p 8888:80 --name ${containerName} -v ${pxe}:/usr/share/nginx/html:ro nginx
+
+
+
 fi
 
 # handling the network
@@ -221,7 +238,7 @@ fi
 printf "Status:\n"
 printf "  starting VM(UUID:%s) with MAC:%s in %s\n" $uuid $macfull $targetDir
 [ $monitor ]	&& printf "  monitor: %s.monitor\tconnect: socat - UNIX-CONNECT:%s\n" $mac $targetDir/$mac.monitor
-[ $pxe ]	&& printf "  pxeboot: %.ipxe/\n" $mac
+[ $pxe ]	&& printf "  pxeboot: %s.ipxe/\n" $mac
 [ $bridge ]	&& printf "  interface: %s  bridged\n" $bridge
 [ $bridge ]	|| printf "  sshport: %s  unbridged\n" $port
 [ $vnc ] 	&& printf "  vncport: %s\n" $(( vncport + 5900 ))

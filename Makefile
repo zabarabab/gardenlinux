@@ -10,7 +10,7 @@ all: all_dev all_prod
 
 cert/sign.pub:
 	make --directory=cert MAINTAINER_EMAIL=$(MAINTAINER_EMAIL)
-	@gpg --list-secret-keys $(MAINTAINER_EMAIL) > /dev/null || echo "No secret key for $(MAINTAINER_EMAIL) exists, signing disabled" 
+	@gpg --list-secret-keys $(MAINTAINER_EMAIL) > /dev/null || echo "No secret key for $(MAINTAINER_EMAIL) exists, signing disabled"
 	@diff cert/sign.pub gardenlinux.pub || echo "Not using the official key"
 
 .PHONY: docker
@@ -94,7 +94,7 @@ OPENSTACK_DEV_IMAGE_NAME=$(IMAGE_BASENAME)-openstack-dev-$(VERSION)
 openstack-dev: docker-build cert/sign.pub
 	./build.sh --no-build --features server,cloud,gardener,openstack,_dev $(BUILDDIR)/openstack-dev $(VERSION)
 
-openstack-dev-upload: 
+openstack-dev-upload:
 	./bin/upload-openstack $(BUILDDIR)/openstack-dev/$(SNAPSHOT_DATE)/rootfs.vmdk $(OPENSTACK_DEV_IMAGE_NAME)
 
 openstack-qcow2: docker-build cert/sign.pub
@@ -135,6 +135,12 @@ metal: docker-build cert/sign.pub
 
 metal-dev: docker-build cert/sign.pub
 	./build.sh --no-build --features server,metal,_dev $(BUILDDIR)/metal-dev $(VERSION)
+
+onie: docker-build cert/sign.pub
+	./build.sh --no-build --features server,metal,onie $(BUILDDIR)/onie $(VERSION)
+
+onie-dev: docker-build cert/sign.pub
+	./build.sh --no-build --features server,metal,onie,_dev $(BUILDDIR)/onie-dev $(VERSION)
 
 metalk: docker-build cert/sign.pub
 	./build.sh --no-build --features server,metal,chost,khost,_pxe $(BUILDDIR)/metalk $(SNAPSHOT_DATE)

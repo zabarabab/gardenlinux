@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+env
+
+dir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
+
+cat <(sed "s/%%VERSION%%/$version/" "$dir/nos_installer.sh") <(base64 "$2.tar.xz") > "$(dirname "$2")/onie-installer"

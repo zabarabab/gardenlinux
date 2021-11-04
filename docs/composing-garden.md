@@ -1,8 +1,28 @@
+
+# TODO: Questions
+*Make sure to clarify these questions and delete this TODO chapter before PR*
+
+- In which Step are the feature.include and feature.exclude handled?
+- A feature/XYZ/README.md template?
+	- Brief Description
+	- Meta Data: Introduced with version
+	- Test Flag/Status
+	- ...
+- Should we include a pointer to information on how to debug the pipeline?
+	- Enable Logs / Find Logs
+- Are all tests run after the image is complete?
+- Should we include a chapter for the test stage to this doc? (or just a link?)
+
+-
+
+-------
+
 # Composing a Garden Linux
 
 Garden Linux is a Debian derivate designed to run container workload
 for most Cloud Providers and bare Metal. Garden Linux is a small and
-auditable specialized linux distribution, tailored for one target platform.
+auditable specialized linux distribution, tailored for a supported target
+platform of your choice.
 
 To have both, a wide range of supported platforms and a minimal
 Garden Linux image, Garden Linux Repository comes with a configurable
@@ -49,7 +69,7 @@ listed in the table below.
 | [cis](../features/cis/)		| Debian hardening tests. For details please check https://github.com/ovh/debian-cis |
 | [cloud](../features/cloud/)		| Base for all Cloud platforms. Automatically selected when you choose a platform. Installs Cloud Kernel. 			|
 | [fedramp](../features/fedramp/)	| Tests required for U.S. Governement Cloud Service offerings. Please check https://www.fedramp.gov for context. |
-| [vhost](../features/vhost)		|  			|
+| [vhost](../features/vhost)		| Feature enables kvm and libvirt |
 | [server](../features/server)		| Includes common packages and configurations used by metal and cloud |
 
 To create a new feature, check out the template feature [example](../features/example/).
@@ -82,17 +102,22 @@ the following respective sub chapters.
 
 ### init (aka gardeninit)
 
-- TODO: describe in detail what happens in init
+The init (aka gardeninit) step collects packages from all pkg.include and
+pkg.exclude files. The result is a list of packages that will be installed.
+
 
 ### exec.pre (not implemented)
 
 - TODO: describe in detail what is planned
+	- exec.pre allows us to remove stuff really early (e.g. berkley db)
 
 ### copy
+
 
 - TODO: describe in detail what happens
 
 ### exec.config
+
 
 - TODO: describe in detail what happens
 
@@ -103,9 +128,3 @@ the following respective sub chapters.
 ### exec.post (not implemented)
 
 - TODO: describe in detail what happens
-
-
-- TODO: describe pipeline
-  - how gardenlinux is composed
-  - show all steps that exist
-  - explain each step briefly

@@ -3,7 +3,7 @@
 *Make sure to clarify these questions and delete this TODO chapter before PR*
 
 - In which Step are the feature.include and feature.exclude handled?
-- A feature/XYZ/README.md template?
+- A feature/example/README.md template? Or use info.yaml for minimal doc?
 	- Brief Description
 	- Meta Data: Introduced with version
 	- Test Flag/Status
@@ -12,8 +12,6 @@
 	- Enable Logs / Find Logs
 - Are all tests run after the image is complete?
 - Should we include a chapter for the test stage to this doc? (or just a link?)
-
--
 
 -------
 
@@ -33,7 +31,7 @@ But first, we will clarify terminology in the following sub chapters before.
 
 
 
-## Flavor
+## Flavors / Platforms
 By selecting a **flavor** of garden linux, you get support for
 the specified platform (the flavor). This will install additional packages required by the
 platform. Depending on the requirements of the platform, additional
@@ -83,14 +81,14 @@ and can be identified by a leading underscore before their name.
 ### Available Modifiers
 |   Modifier	| Brief Description |
 |---		|---	|
-| [_build](../features/_build/) 	| a 	|
-| [_dev](../features/_dev) 		|  	|
+| [_build](../features/_build/) 	| 	|
+| [_dev](../features/_dev) 		| Enables developer tools on the garden linux image 	|
 | [_ignite](../features/_ignite)	|  	|
-| [_nopkg](../features/_nopkg)		|  	|
-| [_prod](../features/_prod)		|  	|
+| [_nopkg](../features/_nopkg)		| All package system realted tools are removed 	|
+| [_prod](../features/_prod)		| Enables modifier ```_nopkg```and ```_readonly``` 	|
 | [_pxe](../features/_pxe)		|  	|
-| [_readonly](../features/_readonly)	|  	|
-| [_slim](../features/slim)		|  	|
+| [_readonly](../features/_readonly)	| /usr directory will be readonly 	|
+| [_slim](../features/slim)		| Slimified version of garden linux. E.g. no man pages 	|
 
 
 ## Build Pipeline

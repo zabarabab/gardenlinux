@@ -13,6 +13,10 @@ mnt=$(mktemp -d)
 
 cp -a "$rootfs/." "$rootfs_work"
 
+chcon -R system_u:object_r:unlabeled_t:s0 "$rootfs_work"
+chroot "$rootfs_work" /sbin/setfiles /etc/selinux/default/contexts/files/file_contexts /
+rm "$rootfs_work/.autorelabel"
+
 # setup systemd boot (setting SYSTEMD_ESP_PATH env needed to bypass bootctl checking if mounted from esp partition)
 touch "$rootfs_work/boot/efi/loader/loader.conf"
 chroot "$rootfs_work" /usr/bin/env -i SYSTEMD_ESP_PATH="/boot/efi" bootctl --no-variables install
@@ -88,7 +92,7 @@ sed 's/#.*//;/^[[:blank:]]*$/d' \
 		cp -a "$rootfs_work$target/." "$mnt"
 		if [[ "$depth" = 0 ]]; then
 			# we iterate depth sorted, so all other partitions should already have been processed and written to fstab
-			cp "$fstab" "$mnt/etc/fstab"
+			column -t "$fstab" > "$mnt/etc/fstab"
 		fi
 		umount "$mnt"
 		rm -rf "$rootfs_work$target"

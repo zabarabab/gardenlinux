@@ -3,6 +3,7 @@ import logging
 import json
 import urllib.request
 
+import paramiko
 from googleapiclient.errors import HttpError
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,11 @@ def get_my_ip():
     doc = json.load(response)
     return doc['ip']
 
+def get_public_key(private_key_file):
+    k = paramiko.RSAKey.from_private_key_file(private_key_file)
+    return k.get_name() + " " + k.get_base64()
+
+# gcp related
 def delete_firewall_rule(compute, project, name):
     try:
         request = compute.firewalls().delete(project=project, firewall=name)
@@ -49,3 +55,9 @@ def wait_for_global_operation(compute, project, operation):
         if "error" in response:
             error = response["error"]
         raise Exception("Operation %s failed: %s" % (operation, error))
+
+def get_config_value(config, key):
+    if key in config and config[key] != "":
+        return config[key]
+    else:
+        return None

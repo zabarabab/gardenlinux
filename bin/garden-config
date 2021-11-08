@@ -20,7 +20,7 @@ while true; do
 	dgetopt-case "$flag"
 	case "$flag" in
 		--features) features="${features:+$features,}$1"; shift ;;
-		--arch)		arch="$1"; shift ;;
+		--arch) arch="$1"; shift ;;
 		--) break ;;
 		*) eusage "unknown flag '$flag'" ;;
 	esac

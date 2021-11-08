@@ -1,4 +1,6 @@
 fdisk
+[${arch}=amd64] syslinux
+[${arch}=amd64] syslinux-common
 cloud-guest-utils
 libpam-cracklib
 rng-tools5

@@ -112,7 +112,6 @@ exclude="$(tr "," "\n" <<< $include)"$'\n'
 
 for i in $(echo "base,$features" | tr ',' '\n' | norm_features); do
 	[ -s $featureDir/$i/pkg.include ] && include+="$(cat $featureDir/$i/pkg.include)"$'\n'
-	[ -s "$featureDir/$i/pkg.include.$arch" ] && include+="$(cat $featureDir/$i/pkg.include.$arch)"$'\n'
 	[ -s $featureDir/$i/pkg.exclude ] && exclude+="$(cat $featureDir/$i/pkg.exclude)"$'\n'
 done
 

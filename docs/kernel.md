@@ -38,6 +38,30 @@ make manual
 ./manual/Linux-5.10-signed
 
 ```
+The ```packages/manual/linux-${MY-KERNEL-VERSION}.d/VERSION``` file sets version environment
+variables required by the ```packages/manual/linux-${MY-KERNEL-VERSION}```script.
+
+Before the linux-image-* packages are build from source,
+we apply patches to the kernel sources.
+
+In the end, our kernel build script creates multiple .deb files for
+headers, images, libc and more.
+
+## Kernel Flavours
+In addition to the vanilla Linux Kernel from [kernel.org](https://kernel.org),
+we also build a **Realtime Linux Kernel** and a **Kernel** with Cloud Configuration
+
+**Per default our scripts always build Vanilla, RT and Cloud Kernels.**
+
+### Cloud Kernel
+The cloud flavour of the Linux Kernel uses a Kernel Configuration,
+which disables features and drivers unnecessary for a cloud server.
+Building a Cloud Kernel is straight forward, and is done via the kernel configuration.
+
+### Realtime Linux Kernel
+The [Realtime Kernel](https://wiki.linuxfoundation.org/realtime/start) is build
+by applying a set of patches to the vanilla kernel sources.
+
 
 ## Why does Garden Linux not integrate the mainline stable?
 Mainline stable introduces features to the new Linux kernel, which happens every ~2 months. Some of those features affect the way e.g. container or network environment interact with the kernel and need some time to be adopted in surrounding tooling. Also some other feature introduce bugs, recognized after release and need to be reverted or other changes. In short: to avoid this we wait until a kernel version becomes a longterm stable and try to integrate always the latest long term stable and the one before to have a decent deprecation phase.   
@@ -70,10 +94,18 @@ which is used by Garden Linux as a base for configuration.
 We extend this kernel configuration to our specific requirements during the
 kernel integration process.
 
-## I need a Driver for my Garden Linux!
+## I need a driver for my Garden Linux!
 
 If your driver is free, and part of the kernel but not yet included in your
 Garden Linux Image you may want to change the kernel configuration to include it.
+
+## I need a driver which is not included in the Linux Kernel!
+
+You need to compile your drivers against the target Garden Linux Kernel.
+
+
+
+
 
 
 

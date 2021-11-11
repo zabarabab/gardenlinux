@@ -6,12 +6,19 @@ disableToc: false
 
 # Linux Kernel
 
+Garden Linux aims towards a complete open, reproducible and easy-to-understand solution.
+That also includes all activities around the Kernel.
+All Garden Linux Kernels are based on the official [Kernel.org](https://kernel.org) Linux Kernel Sources.
+Garden Linux has it's roots in Debian - Garden Linux is a Debian derivative, so to support the Debian feature set,
+we integrate with the [debian kernels](https://wiki.debian.org/Kernel) build environment.
+Garden Linux aims to keep the amount of patches applied to a Kernel diverging
+from Debian and kernel.org low. This allows anyone to easily support the Garden Linux kernel with no deep
+knowlege of Garden Linux internals is needed.
 
-Garden Linux aims towards a complete open, reproducible and easy-to-understand solution. That also includes all activities around the Kernel.
-[Kernel.org](https://kernel.org) is the source of the official Linux kernels and therefore all kernels in Garden Linux are mainly based on this. Not to forget our Debian roots: we integrate with the build environment [debian kernels](https://wiki.debian.org/Kernel) to support the Debian featureset to be compatible. Garden Linux tries to keep the amount of patches in the kernel diverging from Debian and kernel.org low, so everybody can easily support the Garden Linux kernel and no deep knowlege of Garden Linux inernals is needed.
-In contrast to Debian Garden Linux integrates always with the latest Long Term Support kernel (LTS) and maintains this kernel at least for one overlapping period till the next kernel will be available. You can find the release categoies and the time schedule for LTS releases also [kernel.org](https://www.kernel.org/category/releases.html).
+In contrast to Debian, Garden Linux integrates always with the latest Long Term Support kernel (LTS)
+and maintains this kernel at least for one overlapping period until the next kernel will be available.
+You can find the release categoies and the time schedule for LTS releases also [kernel.org](https://www.kernel.org/category/releases.html).
 Garden Linux aims to integrate the latest long term release.
-
 
 ## How to build a Linux Kernel for Garden Linux
 

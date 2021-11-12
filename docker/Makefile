@@ -13,6 +13,14 @@ needslim:
 build-image: needslim
 	@docker build --build-arg VERSION=$(VERSION) -t gardenlinux/build-image:$(VERSION) $(ALTNAME_INTERNAL) build-image
 
+.PHONY: build-kernel
+build-kernel: needslim
+	mkdir -p build-kernel/linux
+	cp ../packages/manual/.helper build-kernel/linux/
+	cp -r ../packages/manual/linux-* build-kernel/linux/
+	cp -r ../cert build-kernel/cert/
+	@docker build -t gardenlinux/build-kernel build-kernel
+
 .PHONY: build
 build: needslim
 	@docker build --build-arg BUILDARCH="$$(dpkg --print-architecture | awk -F- "{ print \$$NF }")" -t gardenlinux/build $(ALTNAME_INTERNAL) build

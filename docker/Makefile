@@ -9,17 +9,23 @@ all: build-image build-integration-test
 needslim:
 	@./needslim
 
+
 .PHONY: build-image
 build-image: needslim
 	@docker build --build-arg VERSION=$(VERSION) -t gardenlinux/build-image:$(VERSION) $(ALTNAME_INTERNAL) build-image
+
 
 .PHONY: build-kernel
 build-kernel: needslim
 	mkdir -p build-kernel/linux
 	cp ../packages/manual/.helper build-kernel/linux/
+	cp ../packages/manual/LINUX-VERSION build-kernel/linux/
 	cp ../packages/manual/.kernel-helper build-kernel/linux/
+	cp ../packages/manual/download_all_kernel_sources.sh build-kernel/linux/
 	cp -r ../packages/manual/linux-* build-kernel/linux/
 	cp -r ../cert build-kernel/cert/
+	ls -la build-kernel/linux
+	cd build-kernel/ && . linux/VERSION && ./linux/download_all_kernel_sources.sh
 	@docker build -t gardenlinux/build-kernel build-kernel
 
 .PHONY: build

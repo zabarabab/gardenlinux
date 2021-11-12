@@ -17,6 +17,7 @@ build-image: needslim
 build-kernel: needslim
 	mkdir -p build-kernel/linux
 	cp ../packages/manual/.helper build-kernel/linux/
+	cp ../packages/manual/.kernel-helper build-kernel/linux/
 	cp -r ../packages/manual/linux-* build-kernel/linux/
 	cp -r ../cert build-kernel/cert/
 	@docker build -t gardenlinux/build-kernel build-kernel

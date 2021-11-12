@@ -5,7 +5,8 @@ ARG	DEBIAN_FRONTEND=noninteractive
 
 RUN	sudo apt-get update \
      && sudo apt-get install -y \
-		gnupg wget devscripts
+		gnupg wget devscripts \
+		equivs kernel-wedge python3-debian rsync libdistro-info-perl git quilt
 
 COPY	linux /opt/linux
 COPY	cert/sign.pub /sign.pub

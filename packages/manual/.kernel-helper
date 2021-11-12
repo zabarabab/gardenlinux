@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -xvo nounset
 
 get_kernel_sources() {
 
@@ -7,18 +6,92 @@ get_kernel_sources() {
 	if [ -z ${KERNEL_RT_VERSION+x} ]; then echo "KERNEL_RT_VERSION is unset"; return 1; else echo "KERNEL_RT_VERSION is set to '$KERNEL_RT_VERSION'"; fi
 
 	echo "### pulling kernel and rt-patches"
+
 	wget -O linux-$KERNEL_VERSION.tar.sign \
 	        https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-$KERNEL_VERSION.tar.sign
+
 	wget -O patches-$KERNEL_RT_VERSION.tar.sign \
 	        https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/$(cut -d. -f-2 <<< ${KERNEL_BASE})/older/patches-$KERNEL_RT_VERSION.tar.sign
+
 	while [ ! -e linux-$KERNEL_VERSION.tar.xz ] || ! $(xz -dc linux-$KERNEL_VERSION.tar.xz | gpg --verify linux-$KERNEL_VERSION.tar.sign -); do
 		wget -O linux-$KERNEL_VERSION.tar.xz \
 		      	https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-$KERNEL_VERSION.tar.xz
 	done
+
 	while [ ! -e patches-$KERNEL_RT_VERSION.tar.xz ] || ! $(xz -dc patches-$KERNEL_RT_VERSION.tar.xz | gpg --verify patches-$KERNEL_RT_VERSION.tar.sign -); do
 	        wget -O patches-$KERNEL_RT_VERSION.tar.xz \
 	                https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/$(cut -d. -f-2 <<< ${KERNEL_BASE})/older/patches-$KERNEL_RT_VERSION.tar.xz
 	done
 
 }
+
+
+get_old_kernel() {
+	
+	if [ -z ${KERNEL_DEBIAN+x} ]; then echo "KERNEL_DEBIAN is unset"; return 1; else echo "KERNEL_DEBIAN is set to '$KERNEL_DEBIAN'"; fi
+
+	echo "### cloning the old kernel to linux-$KERNEL_DEBIAN"
+	if [ ! -d linux-$KERNEL_DEBIAN ]; then
+	        git -c advice.detachedHead=false clone --depth 1 --single \
+			--branch debian/$KERNEL_DEBIAN \
+	                https://salsa.debian.org/kernel-team/linux.git linux-$KERNEL_DEBIAN
+	fi
+}
+
+
+get_debian_release_env() {
+
+	if [ -z ${BUILDENV+x} ]; then echo "BUILDENV is unset"; return 1; else echo "BUILDENV is set to '$BUILDENV'"; fi
+
+	echo "### cloning the latest and greatest debian release environment to for the kernel"
+	if [ -d $src ]; then
+		cd $src;
+	       	git reset --hard;
+	       	git checkout $BUILDENV;
+	       	git pull --ff-only -q;
+	       	cd ..
+	else	
+		git clone --single --branch $BUILDENV https://salsa.debian.org/kernel-team/linux.git $src
+	fi
+	cd $src
+	## binding build env to the version when gardenlinux was build
+	#BUILDENV=$(git log --before "@${BUILDEPOCH}" -n1 --oneline --no-abbrev-commit | cut -f1 -d' ')
+	#git -c advice.detachedHead=false checkout $BUILDENV
+	#CHANGELOG+="  * using Build Environment of $BUILDENV\n"
+	# binding build to the originial build env
+	git -c advice.detachedHead=false checkout debian/$KERNEL_DEBIAN
+
+}
+
+get_ufs5_from_upstream() {
+
+	if [ -z ${KERNEL_BASE+x} ]; then echo "KERNEL_BASE is unset"; return 1; else echo "KERNEL_BASE is set to '$KERNEL_BASE'"; fi
+
+	echo "### pulling aufs5 from upstream not from debian"
+
+	if [ ! -d  aufs5-standalone ]; then
+		git -c advice.detachedHead=false clone --single \
+			--branch aufs$(cut -d. -f-2 <<< ${KERNEL_BASE}) \
+			https://github.com/sfjro/aufs5-standalone.git aufs5-standalone
+	fi
+
+	cd aufs5-standalone
+
+	aufscommit=$(git log -n1 --oneline --no-abbrev-commit | cut -f1 -d' ')
+}
+
+
+get_linux_stable_for_comments() {
+	
+	if [ -z ${KERNEL_BASE+x} ]; then echo "KERNEL_BASE is unset"; return 1; else echo "KERNEL_BASE is set to '$KERNEL_BASE'"; fi
+	
+	echo "### pulling linux-stable for comments"
+	
+	# checking out linux stable to have the whole changelog from the kernel readable for debian/bin/stable-update
+	if [ ! -d linux-stable ]; then
+        	git clone --single --branch linux-$(echo $KERNEL_BASE | sed s/0$/y/) --bare \
+			https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git linux-stable
+	fi
+}
+
 

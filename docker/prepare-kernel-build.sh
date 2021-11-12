@@ -4,7 +4,6 @@
 bundleDir="build-kernel/linux"
 
 mkdir -p build-kernel/linux
-cd build-kernel/linux
 
 # Copy kernel packages to container build environment
 if [ ! -f ${bundleDir}/.helper ]; then
@@ -15,7 +14,7 @@ if [ ! -f ${bundleDir}/LINUX-VERSION ]; then
 	cp ../packages/manual/LINUX-VERSION build-kernel/linux/
 fi
 
-if [ ! -f ${bundleDir}/.kernel-helper]; then
+if [ ! -f ${bundleDir}/.kernel-helper ]; then
 	cp ../packages/manual/.kernel-helper build-kernel/linux/
 fi
 

@@ -18,10 +18,6 @@ if [ ! -f ${bundleDir}/.kernel-helper ]; then
 	cp ../packages/manual/.kernel-helper build-kernel/linux/
 fi
 
-if [ ! -f ${bundleDir}/.download_all_kernel_sources.sh ]; then
-	cp ../packages/manual/download_all_kernel_sources.sh build-kernel/linux/
-fi
-
 if [[ ! -d ${bundleDir}/linux-5.10.d/ ]]; then
 	# just Copy everything matching linux-* again if the folder is not present
 	cp -r ../packages/manual/linux-* build-kernel/linux/
@@ -35,5 +31,24 @@ fi
 
 cd build-kernel/
 
-# Set Linux Version env variables
-. linux/LINUX-VERSION && ./linux/download_all_kernel_sources.sh
+. linux/LINUX-VERSION
+. linux/.helper
+. linux/.kernel-helper
+
+
+
+get_kernel_sources 
+
+get_debian_release_env
+
+get_old_kernel
+
+get_ufs5_from_upstream
+
+get_linux_stable_for_comments
+
+
+
+
+
+

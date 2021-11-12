@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -xvo nounset
+
+get_kernel_sources() {
+
+	if [ -z ${KERNEL_VERSION+x} ]; then echo "KERNEL_VERSION is unset"; return 1; else echo "KERNEL_VERSION is set to '$KERNEL_VERSION'"; fi
+	if [ -z ${KERNEL_RT_VERSION+x} ]; then echo "KERNEL_RT_VERSION is unset"; return 1; else echo "KERNEL_RT_VERSION is set to '$KERNEL_RT_VERSION'"; fi
+
+	echo "### pulling kernel and rt-patches"
+	wget -O linux-$KERNEL_VERSION.tar.sign \
+	        https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-$KERNEL_VERSION.tar.sign
+	wget -O patches-$KERNEL_RT_VERSION.tar.sign \
+	        https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/$(cut -d. -f-2 <<< ${KERNEL_BASE})/older/patches-$KERNEL_RT_VERSION.tar.sign
+	while [ ! -e linux-$KERNEL_VERSION.tar.xz ] || ! $(xz -dc linux-$KERNEL_VERSION.tar.xz | gpg --verify linux-$KERNEL_VERSION.tar.sign -); do
+		wget -O linux-$KERNEL_VERSION.tar.xz \
+		      	https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-$KERNEL_VERSION.tar.xz
+	done
+	while [ ! -e patches-$KERNEL_RT_VERSION.tar.xz ] || ! $(xz -dc patches-$KERNEL_RT_VERSION.tar.xz | gpg --verify patches-$KERNEL_RT_VERSION.tar.sign -); do
+	        wget -O patches-$KERNEL_RT_VERSION.tar.xz \
+	                https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/$(cut -d. -f-2 <<< ${KERNEL_BASE})/older/patches-$KERNEL_RT_VERSION.tar.xz
+	done
+
+}
+

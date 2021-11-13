@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+set -euox pipefail
+
+. $(dirname $0)/.helper
+. $(dirname $0)/.kernel-helper
+. $(dirname $0)/LINUX-VERSION
+
+CERT_DIR="${CERTDIR:-/}"
+CHANGELOG=""
+
+echo "### getting the keys of the maintainers"
+for i in $(cat ${srcDir}/gpgkeys); do
+	if [[ $i == *"@"* ]]; then	gpg --keyserver hkps://keyserver.ubuntu.com --locate-keys $i
+	else				gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys $i
+	fi
+done
+gpg --tofu-policy good $(gpg --list-keys $(cat ${srcDir}/gpgkeys) | grep "^      ")
+
+echo "### updating package repsitory"
+sudo apt-get update
+echo "### installing minimal create requirements"
+sudo apt-get install --no-install-recommends -y equivs kernel-wedge python3-debian rsync libdistro-info-perl git quilt
+
+
+get_kernel_sources 
+
+get_debian_release_env
+
+get_old_kernel
+
+get_ufs5_from_upstream
+
+get_linux_stable_for_comments
+
+
+echo "### bootstrapping the kernel build"
+cd $src
+# keeping the upstream defines
+mv debian/config/defines debian/config.defines
+rm -rf debian/config debian/patches debian/patches-rt/*
+cp -R ../linux-$KERNEL_DEBIAN/debian/patches ../linux-$KERNEL_DEBIAN/debian/config debian/
+mv debian/config.defines debian/config/defines
+
+# if debian is older then our patchset
+if $(dpkg --compare-versions $KERNEL_DEBIAN lt $KERNEL_VERSION); then
+	echo "### integrating rt-patches"
+	debian/bin/genpatch-rt ../patches-$KERNEL_RT_VERSION.tar.xz
+	CHANGELOG+="  * [rt] Update to $KERNEL_RT_VERSION and re-enable\n"
+else
+	cp -R ../linux-$KERNEL_DEBIAN/debian/patches-rt debian/
+fi
+
+echo "### integrating aufs5-patches"
+debian/bin/genpatch-aufs ../aufs5-standalone
+CHANGELOG+="  * [aufs5] Update to $aufscommit\n"
+
+echo "### setting Garden Linux abi"
+sed -i "s/abiname:.*/abiname:$KERNEL_ABI/" debian/config/defines
+CHANGELOG+="  * Bump ABI to $KERNEL_ABI.\n"
+
+if [[ $KERNEL_FLAVOURS != *"-rt"* ]]; then
+	sed -i "s/enabled: true/enabled: false/" debian/config/defines
+	CHANGELOG+="  * Disabled RT featureset\n"
+fi
+if [[ $KERNEL_FLAVOURS != *"-cloud"* ]]; then
+	sed -i "/^ cloud-amd64$/d" debian/config/amd64/none/defines
+	CHANGELOG+="  * Disabled cloud featureset\n"
+fi
+
+#export DEB_BUILD_OPTIONS="nodoc tersee"
+#export DEB_BUILD_PROFILES="nodoc nopython pkg.linux.nosource pkg.linux.notools"
+
+echo "### patching Garden Linux enhancements"
+#patch -p1 < $srcDir/rt-0038.patch
+cp $srcDir/fpga-ofs.patch debian/patches
+patch -p1 < $srcDir/fpga-config.patch
+printf "\n# Intel IOFS patches\nfpga-ofs.patch\n" >> debian/series
+CHANGELOG+="  * Added Intel FPGA OFS\n"
+#patch -p1 < $srcDir/mok.patch
+#patch -p1 < $srcDir/series.patch
+
+echo "### setting certificate"
+# to make sure we do not take this accidently
+rm -f debian/certs/debian-uefi-certs.pem
+if [ -e "${CERT_DIR}/kernel.full" ]; then
+	cp "${CERT_DIR}/kernel.full" debian/certs/gardenlinux-kernel-certs.pem
+elif [ -e "${CERT_DIR}/Kernel.sign.full" ]; then
+	cp "${CERT_DIR}/Kernel.sign.full" debian/certs/gardenlinux-kernel-certs.pem
+else
+	cp /kernel.full debian/certs/gardenlinux-kernel-certs.pem
+fi
+sed -i "s/debian-uefi-certs.pem/gardenlinux-kernel-certs.pem/" debian/config/config debian/config/featureset*/config
+CHANGELOG+="  * Replaced Debian signing certs with GardenLinux certs\n"
+
+echo "### populating the changelog"
+mv debian/changelog debian/changelog.org
+cat - > debian/changelog <<EOF
+linux (${KERNEL_VERSION}-1) UNRELEASED; urgency=medium
+
+  [ Garden Linux Maintainers ]
+  * new upstream Version ${KERNEL_VERSION}
+$(echo -e "$CHANGELOG")
+
+ -- Garden Linux Maintainers <contact@gardenlinux.io>  $(date -R)
+
+EOF
+
+debian/bin/stable-update ../linux-stable ${KERNEL_VERSION}
+mv debian/changelog debian/changelog.newkernel
+cat debian/changelog.newkernel debian/changelog.org > debian/changelog
+rm -f debian/changelog.new debian/changelog.newkernel debian/changelog.org
+dch -lgardenlinux ""
+dch -r ""
+
+echo "### generating a debian conform orig file and install"
+[ -e ../orig/linux_*.tar.xz ] || PYTHONHASHSEED=0 debian/bin/genorig.py ../linux-*.tar.xz
+make -f debian/rules orig
+
+echo "### generate custom control files"
+PYTHONHASHSEED=0 debian/bin/gencontrol.py
+echo "### deviate needed packages and install"
+TMPDIR=.. mk-build-deps debian/control
+sudo apt-get install -y --no-install-recommends -f ../linux-build-deps_*_${KERNEL_ARCH}.deb
+
+echo "### enabling control file (supposed to fail)"
+make -f debian/rules debian/control-real || /bin/true
+
+donotmove="$(ls ..)"
+echo "### build"
+debuild
+mv ../orig/linux_*.tar.xz ..
+rm -rf ../orig
+src=linux
+move_package .. $donotmove

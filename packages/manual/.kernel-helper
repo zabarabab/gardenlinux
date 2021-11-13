@@ -8,7 +8,7 @@ import_gpg_keys() {
 	bundleDir=$1
 	path_to_gpg_keys=$2
 	if [ ! -f ${path_to_gpg_keys} ]; then echo "${path_to_gpg_keys} does not exist"; return 1; fi
-	if [ ! -d ${bundleDir} ]; then echo "${bundleDir} does not exist"; return 1; fi
+	if [ ! -d ${bundleDir} ]; then echo "${FUNCNAME[0]}: ${bundleDir} does not exist"; return 1; fi
 
 	echo "### getting the keys of the maintainers using ${path_to_gpg_keys}"
 	for i in $(cat ${path_to_gpg_keys}); do
@@ -29,7 +29,7 @@ get_kernel_sources() {
 
 	if [ -z ${1+x} ]; then echo "First argument of ${FUNCNAME[0]} must be path to bundle dir"; return 1;fi 
 	bundleDir=$1
-	if [ ! -d ${bundleDir} ]; then echo "${bundleDir} does not exist"; return 1; fi
+	if [ ! -d ${bundleDir} ]; then echo "${FUNCNAME[0]}: ${bundleDir} does not exist"; return 1; fi
 
 	if [ -z ${KERNEL_VERSION+x} ]; then echo "KERNEL_VERSION is unset"; return 1; else echo "KERNEL_VERSION is set to '$KERNEL_VERSION'"; fi
 	if [ -z ${KERNEL_RT_VERSION+x} ]; then echo "KERNEL_RT_VERSION is unset"; return 1; else echo "KERNEL_RT_VERSION is set to '$KERNEL_RT_VERSION'"; fi
@@ -61,7 +61,8 @@ get_kernel_sources() {
 get_old_kernel() {
 	if [ -z ${1+x} ]; then echo "First argument of ${FUNCNAME[0]} must be path to bundle dir"; return 1;fi 
 	bundleDir=$1
-	if [ ! -d ${bundleDir} ]; then echo "${bundleDir} does not exist"; return 1; fi
+	pwd
+	if [ ! -d ${bundleDir} ]; then echo "${FUNCNAME[0]}: ${bundleDir} does not exist"; return 1; fi
 	
 	if [ -z ${KERNEL_DEBIAN+x} ]; then echo "KERNEL_DEBIAN is unset"; return 1; else echo "KERNEL_DEBIAN is set to '$KERNEL_DEBIAN'"; fi
 
@@ -77,7 +78,7 @@ get_old_kernel() {
 get_debian_release_env() {
 	if [ -z ${1+x} ]; then echo "First argument of ${FUNCNAME[0]} must be path to bundle dir"; return 1;fi 
 	bundleDir=$1
-	if [ ! -d ${bundleDir} ]; then echo "${bundleDir} does not exist"; return 1; fi
+	if [ ! -d ${bundleDir} ]; then echo "${FUNCNAME[0]}: ${bundleDir} does not exist"; return 1; fi
 
 	releaseEnvDir=${bundleDir}/linux-release-env	
 
@@ -92,20 +93,20 @@ get_debian_release_env() {
 	else	
 		git clone --single --branch $BUILDENV https://salsa.debian.org/kernel-team/linux.git ${releaseEnvDir}
 	fi
-	cd ${releaseEnvDir}
+	pushd ${releaseEnvDir}
 	## binding build env to the version when gardenlinux was build
 	#BUILDENV=$(git log --before "@${BUILDEPOCH}" -n1 --oneline --no-abbrev-commit | cut -f1 -d' ')
 	#git -c advice.detachedHead=false checkout $BUILDENV
 	#CHANGELOG+="  * using Build Environment of $BUILDENV\n"
 	# binding build to the originial build env
 	git -c advice.detachedHead=false checkout debian/$KERNEL_DEBIAN
-
+	popd
 }
 
 get_ufs5_from_upstream() {
 	if [ -z ${1+x} ]; then echo "First argument of ${FUNCNAME[0]} must be path to bundle dir"; return 1;fi 
 	bundleDir=$1
-	if [ ! -d ${bundleDir} ]; then echo "${bundleDir} does not exist"; return 1; fi
+	if [ ! -d ${bundleDir} ]; then echo "${FUNCNAME[0]}: ${bundleDir} does not exist"; return 1; fi
 
 	if [ -z ${KERNEL_BASE+x} ]; then echo "KERNEL_BASE is unset"; return 1; else echo "KERNEL_BASE is set to '$KERNEL_BASE'"; fi
 
@@ -117,23 +118,23 @@ get_ufs5_from_upstream() {
 			https://github.com/sfjro/aufs5-standalone.git ${bundleDir}/aufs5-standalone
 	fi
 
-	cd ${bundleDir}/aufs5-standalone
-
+	pushd ${bundleDir}/aufs5-standalone
 	aufscommit=$(git log -n1 --oneline --no-abbrev-commit | cut -f1 -d' ')
+	popd
 }
 
 
 get_linux_stable_for_comments() {
 	if [ -z ${1+x} ]; then echo "First argument of ${FUNCNAME[0]} must be path to bundle dir"; return 1;fi 
 	bundleDir=$1
-	if [ ! -d ${bundleDir} ]; then echo "${bundleDir} does not exist"; return 1; fi
+	if [ ! -d ${bundleDir} ]; then echo "${FUNCNAME[0]}: ${bundleDir} does not exist"; return 1; fi
 	
 	if [ -z ${KERNEL_BASE+x} ]; then echo "KERNEL_BASE is unset"; return 1; else echo "KERNEL_BASE is set to '$KERNEL_BASE'"; fi
 	
 	echo "### pulling linux-stable for comments"
 	
 	# checking out linux stable to have the whole changelog from the kernel readable for debian/bin/stable-update
-	if [ ! -d ${bundleDir}linux-stable ]; then
+	if [ ! -d ${bundleDir}/linux-stable ]; then
         	git clone --single --branch linux-$(echo $KERNEL_BASE | sed s/0$/y/) --bare \
 			https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git ${bundleDir}/linux-stable
 	fi

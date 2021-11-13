@@ -37,65 +37,30 @@ if [ ${debug:-} ]; then
 	set -x
 fi
 
-
-bundleDir=${bundleDir:-"build-kernel/linux"}
+thisDir=$(dirname $0)
+kernelSrcDir=${kernelSrcDir:-"${thisDir}/gardenkernel-src"}
 keepold=${keepold:-0}
-mkdir -p build-kernel/linux
+mkdir -p ${kernelSrcDir}
 
-
-# Copy kernel packages to container build environment
-if [ ! -f ${bundleDir}/.helper ] || [ ${keepold} == 0 ]; then
-	echo "Getting fresh helper"
-	cp ../packages/manual/.helper ${bundleDir}
-fi
-
-if [ ! -f ${bundleDir}/LINUX-VERSION ] || [ ${keepold} == 0 ]; then
-	echo "Getting fresh LINUX-VERSION"
-	cp ../packages/manual/LINUX-VERSION ${bundleDir} 
-fi
-
-if [ ! -f ${bundleDir}/gpgkeys ] || [ ${keepold} == 0 ]; then
-	echo "Getting fresh gpgkeys"
-	cp ../packages/manual/linux-5.10.d/gpgkeys ${bundleDir}
-fi
-
-if [ ! -f ${bundleDir}/.kernel-helper ] || [ ${keepold} == 0 ]; then
-	echo "Getting fresh kernel-helper"
-	cp ../packages/manual/.kernel-helper ${bundleDir}
-fi
-
-if [[ ! -d ${bundleDir}/linux-5.10.d/ ]]; then
-	# just Copy everything matching linux-* again if the folder is not present
-	cp -r ../packages/manual/linux-* ${bundleDir}
-fi
-
-
-if [[ ! -d ${bundleDir}/cert/ ]]; then
-	cp -r ../cert ${bundleDir}
-fi
-
-
-. ${bundleDir}/LINUX-VERSION
-. ${bundleDir}/.helper
-. ${bundleDir}/.kernel-helper
+. ${thisDir}/LINUX-VERSION
+. ${thisDir}/.kernel-helper
 
 
 #gpg2 --locate-keys torvalds@kernel.org gregkh@kernel.org 514B0EDE3C387F944FB3799329E574109AEBFAAA
 #gpg --import cert/sign.pub > /dev/null
 
 echo "--------------------------"
-import_gpg_keys ${bundleDir} ${bundleDir}/gpgkeys
-#${bundleDir}/gpgkeys
+import_gpg_keys ${kernelSrcDir} 
 
-get_kernel_sources ${bundleDir}
+get_kernel_sources ${kernelSrcDir}
 
-get_debian_release_env ${bundleDir}
+get_debian_release_env ${kernelSrcDir}
 
-get_old_kernel ${bundleDir}
+get_old_kernel ${kernelSrcDir}
 
-get_ufs5_from_upstream ${bundleDir}
+get_ufs5_from_upstream ${kernelSrcDir}
 
-get_linux_stable_for_comments ${bundleDir}
+get_linux_stable_for_comments ${kernelSrcDir}
 
 
 

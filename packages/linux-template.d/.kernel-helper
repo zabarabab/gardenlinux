@@ -4,9 +4,8 @@
 import_gpg_keys() {
 
 	if [ -z ${1+x} ]; then echo "First argument of ${FUNCNAME[0]} must be path to bundle dir"; return 1;fi 
-	if [ -z ${2+x} ]; then echo "First argument of ${FUNCNAME[0]} function must be path to gpgkeys file"; return 1; fi
 	bundleDir=$1
-	path_to_gpg_keys=$2
+	path_to_gpg_keys=${bundleDir}/gpgkeys
 	if [ ! -f ${path_to_gpg_keys} ]; then echo "${path_to_gpg_keys} does not exist"; return 1; fi
 	if [ ! -d ${bundleDir} ]; then echo "${FUNCNAME[0]}: ${bundleDir} does not exist"; return 1; fi
 

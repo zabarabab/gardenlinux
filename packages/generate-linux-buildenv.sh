@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-
+set -o pipefail
 print_help() {
       echo "options:"
       echo "-h, --help			show brief help"
@@ -50,23 +50,29 @@ if [ -z ${templateDir+x} ]; then echo "template-dir not specified"; print_help; 
 if [ -z ${outputDir+x} ]; then echo "output-dir not specified"; print_help;  exit 1; fi 
 if [ -z ${versionFile+x} ]; then echo "version-file not specified"; print_help;  exit 1; fi 
 
-if [[ ! -d ${templateDir} ]]; then echo "templateDir=${templateDir} does not exist"; return 1; fi
-if [[ ! -d ${outputDir} ]]; then echo "outputDir=${outputDir} does not exist"; return 1; fi
-if [ ! -f ${versionFile} ]; then echo "versionFile=${versionFile} does not exist"; return 1; fi
+if [[ ! -d ${templateDir} ]]; then echo "templateDir=${templateDir} does not exist"; exit 1; fi
+if [[ ! -d ${outputDir} ]]; then echo "outputDir=${outputDir} does not exist"; exit 1; fi
+if [ ! -f ${versionFile} ]; then echo "versionFile=${versionFile} does not exist"; exit 1; fi
 
 . ${versionFile}
 
 # create a copy from template dir
-rm -rf ${outputDir}/linu-${KERNEL_VERSION}.d
+rm -rf ${outputDir}/linux-${KERNEL_VERSION}.d
 mkdir -p ${outputDir}/linux-${KERNEL_VERSION}.d
-cp ${templateDir}/* ${outputDir}/linux-${KERNEL_VERSION}.d
+cp -r ${templateDir}/* ${outputDir}/linux-${KERNEL_VERSION}.d
+cp ${templateDir}/.kernel-helper ${outputDir}/linux-${KERNEL_VERSION}.d
 
+
+cp ${versionFile} ${outputDir}/linux-${KERNEL_VERSION}.d
 pushd ${outputDir}
 
 
 pushd linux-${KERNEL_VERSION}.d
-for f in *template*; do mv "$f" "$(echo "$f" | sed s/template/${KERNEL_VERSION}/)"; done
 
+# rename templated files
+listTemplate=$(ls | grep 'template')
+echo $listTemplate
+for f in ${listTemplate}; do mv "$f" "$(echo "$f" | sed s/template/${KERNEL_VERSION}/)"; done
 
 
 popd

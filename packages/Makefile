@@ -19,6 +19,10 @@ sign:
 docker:
 	make --directory=../docker $$(basename $(BUILDIMAGE))
 
+.PHONY: kernel-scripts
+kernel-scripts:
+	./generate-linux-buildenv.sh --template-dir linux-template.d --output-dir test --version-file LINUX-VERSION
+
 .PHONY: docker-kernel
 docker-kernel:
 	make --directory=../docker $$(basename $(BUILDKERNEL))

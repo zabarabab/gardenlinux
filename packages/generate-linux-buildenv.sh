@@ -74,6 +74,7 @@ listTemplate=$(ls | grep 'template')
 echo $listTemplate
 for f in ${listTemplate}; do mv "$f" "$(echo "$f" | sed s/template/${KERNEL_VERSION}/)"; done
 
-
+mv linux-${KERNEL_VERSION} ..
+mv linux-${KERNEL_VERSION}-signed ..
 popd
 popd

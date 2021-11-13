@@ -5,7 +5,6 @@ print_help() {
       echo "-h, --help			show brief help"
       echo "-d, --debug			debug mode of this script"
       echo "-k, --keepold		do not copy kernel scripts again from packages (for debugging)"	
-      echo "-o, --output-dir=DIR	specify where to place the kernel source bundle"
 
 }
 
@@ -22,10 +21,6 @@ while test $# -gt 0; do
 	--keepold) 
 		keepold=1	# Do not copy kernel scripts again (for debugging)  
 	;;
-	-o|--output-dir*)
-		outputDir=`echo $1 | sed -e 's/^[^=]*=//g'`
-      shift
-      ;;
     *) print_help
       break
       ;;

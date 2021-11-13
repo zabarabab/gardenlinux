@@ -45,7 +45,7 @@ get_kernel_sources() {
 	wget -O ${bundleDir}/patches-$KERNEL_RT_VERSION.tar.sign \
 	        https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/$(cut -d. -f-2 <<< ${KERNEL_BASE})/older/patches-$KERNEL_RT_VERSION.tar.sign
 
-	while [ ! -e ${bundleDir}/linux-$KERNEL_VERSION.tar.xz ] || ! $(xz -dc linux-$KERNEL_VERSION.tar.xz | gpg --verify ${bundleDir}/linux-$KERNEL_VERSION.tar.sign -); do
+	while [ ! -e ${bundleDir}/linux-$KERNEL_VERSION.tar.xz ] || ! $(xz -dc ${bundleDir}/linux-$KERNEL_VERSION.tar.xz | gpg --verify ${bundleDir}/linux-$KERNEL_VERSION.tar.sign -); do
 		wget -O ${bundleDir}/linux-$KERNEL_VERSION.tar.xz \
 		      	https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-$KERNEL_VERSION.tar.xz
 	done

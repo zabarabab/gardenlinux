@@ -79,23 +79,23 @@ fi
 . ${bundleDir}/.helper
 . ${bundleDir}/.kernel-helper
 
-cd build-kernel/
 
 #gpg2 --locate-keys torvalds@kernel.org gregkh@kernel.org 514B0EDE3C387F944FB3799329E574109AEBFAAA
 #gpg --import cert/sign.pub > /dev/null
 
 echo "--------------------------"
-import_gpg_keys ${bundleDir}/gpgkeys
+import_gpg_keys ${bundleDir} ${bundleDir}/gpgkeys
+#${bundleDir}/gpgkeys
 
-get_kernel_sources 
+get_kernel_sources ${bundleDir}
 
-get_debian_release_env
+get_debian_release_env ${bundleDir}
 
-get_old_kernel
+get_old_kernel ${bundleDir}
 
-get_ufs5_from_upstream
+get_ufs5_from_upstream ${bundleDir}
 
-get_linux_stable_for_comments
+get_linux_stable_for_comments ${bundleDir}
 
 
 

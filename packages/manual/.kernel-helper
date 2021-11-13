@@ -1,15 +1,36 @@
 #!/usr/bin/env bash
 
+
+import_gpg_keys() {
+
+	echo "### getting the keys of the maintainers"
+	for i in $(cat ${srcDir}/gpgkeys); do
+		if [[ $i == *"@"* ]]; then	
+			gpg --keyserver hkps://keyserver.ubuntu.com --locate-keys $i
+		else			
+			gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys $i
+		fi
+	done
+	gpg --tofu-policy good $(gpg --list-keys $(cat ${srcDir}/gpgkeys) | grep "^      ")
+	gpg --import cert/sign.pub
+	bash
+}
+
+
+
 get_kernel_sources() {
 
 	if [ -z ${KERNEL_VERSION+x} ]; then echo "KERNEL_VERSION is unset"; return 1; else echo "KERNEL_VERSION is set to '$KERNEL_VERSION'"; fi
 	if [ -z ${KERNEL_RT_VERSION+x} ]; then echo "KERNEL_RT_VERSION is unset"; return 1; else echo "KERNEL_RT_VERSION is set to '$KERNEL_RT_VERSION'"; fi
+	
 
 	echo "### pulling kernel and rt-patches"
 
 	wget -O linux-$KERNEL_VERSION.tar.sign \
 	        https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-$KERNEL_VERSION.tar.sign
 
+	if [ ! -f linux-$KERNEL_VERSION.tar.sign ]; then echo "linux-${KERNEL_VERSION}.tar.sign not found!"; return 1; fi
+	
 	wget -O patches-$KERNEL_RT_VERSION.tar.sign \
 	        https://mirrors.edge.kernel.org/pub/linux/kernel/projects/rt/$(cut -d. -f-2 <<< ${KERNEL_BASE})/older/patches-$KERNEL_RT_VERSION.tar.sign
 

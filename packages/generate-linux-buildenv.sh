@@ -4,7 +4,9 @@ print_help() {
       echo "options:"
       echo "-h, --help			show brief help"
       echo "-d, --debug			debug mode of this script"
-      echo "-o, --output-dir=DIR	specify where to place the kernel source bundle"
+      echo "-o, --output-dir DIR	specify where to place the generated files"
+      echo "-t, --template-dir DIR	path to template directory to use as base"
+      echo "-v, --version-file FILE 	path to env file specifying VERSIONS"	
 }
 
 while test $# -gt 0; do
@@ -17,19 +19,23 @@ while test $# -gt 0; do
 		shift
       		debug=1
 	;;
-	-t|--template-input*)
-		templateDir=`echo $1 | sed -e 's/^[^=]*=//g'`
- 		shift
+	-t|--template-dir*)
+		#templateDir=`echo $1 | sed -e 's/^[^=]*=//g'`
+		templateDir=$2
+		echo "set templateDir=${templateDir} "
+ 		shift; shift
       	;;
 	-o|--output-dir*)
-		outputDir=`echo $1 | sed -e 's/^[^=]*=//g'`
- 		shift
+		outputDir=$2
+		echo "set outputDir=${outputDir} "
+ 		shift; shift
       	;;
 	-v|--version-file*)
-		versionFile=`echo $1 | sed -e 's/^[^=]*=//g'`
- 		shift
+		versionFile=$2
+		echo "set versionFile=${versionFile} "
+ 		shift; shift
       	;;
-    *) print_help
+    *)
       break
       ;;
   esac
@@ -40,26 +46,28 @@ if [ ${debug:-} ]; then
 	set -x
 fi
 
+if [ -z ${templateDir+x} ]; then echo "template-dir not specified"; print_help;  exit 1; fi 
+if [ -z ${outputDir+x} ]; then echo "output-dir not specified"; print_help;  exit 1; fi 
+if [ -z ${versionFile+x} ]; then echo "version-file not specified"; print_help;  exit 1; fi 
+
 if [[ ! -d ${templateDir} ]]; then echo "templateDir=${templateDir} does not exist"; return 1; fi
 if [[ ! -d ${outputDir} ]]; then echo "outputDir=${outputDir} does not exist"; return 1; fi
 if [ ! -f ${versionFile} ]; then echo "versionFile=${versionFile} does not exist"; return 1; fi
 
 . ${versionFile}
 
-# copy template dir
-mkdir ${outputDir}/linux-${KERNEL_VERSION}.d
+# create a copy from template dir
+rm -rf ${outputDir}/linu-${KERNEL_VERSION}.d
+mkdir -p ${outputDir}/linux-${KERNEL_VERSION}.d
 cp ${templateDir}/* ${outputDir}/linux-${KERNEL_VERSION}.d
 
-rename  's/template/${KERNEL_VERSION}/' *
+pushd ${outputDir}
 
 
-popd ${outputDir}/linux-${KERNEL_VERSION}.d
-
-
-
-
+pushd linux-${KERNEL_VERSION}.d
+for f in *template*; do mv "$f" "$(echo "$f" | sed s/template/${KERNEL_VERSION}/)"; done
 
 
 
-
-pushd
+popd
+popd

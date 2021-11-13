@@ -83,17 +83,14 @@ get_debian_release_env() {
 
 	if [ -z ${BUILDENV+x} ]; then echo "BUILDENV is unset"; return 1; else echo "BUILDENV is set to '$BUILDENV'"; fi
 	echo "### cloning the latest and greatest debian release environment to for the kernel"
-	pwd && ls
 	if [ -d ${releaseEnvDir} ]; then
-		cd ${releaseEnvDir};
-		pwd && ls
+		pushd ${releaseEnvDir};
 	       	git reset --hard;
 	       	git checkout $BUILDENV;
 	       	git pull --ff-only -q;
-	       	cd ..
+	       	popd
 	else	
 		git clone --single --branch $BUILDENV https://salsa.debian.org/kernel-team/linux.git ${releaseEnvDir}
-		pwd && ls
 	fi
 	cd ${releaseEnvDir}
 	## binding build env to the version when gardenlinux was build

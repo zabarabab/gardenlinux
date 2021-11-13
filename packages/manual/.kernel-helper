@@ -3,15 +3,22 @@
 
 import_gpg_keys() {
 
-	echo "### getting the keys of the maintainers"
-	for i in $(cat ${srcDir}/gpgkeys); do
+	if [ -z ${1+x} ]; then echo "First argument of import_gpg_keys function must be path to gpgkeys file"; fi
+
+	path_to_gpg_keys=$1
+
+	if [ ! -f ${path_to_gpg_keys} ]; then echo "${path_to_gpg_keys} does not exist"; return 1; fi
+
+	echo "### getting the keys of the maintainers using ${path_to_gpg_keys}"
+	for i in $(cat ${path_to_gpg_keys}); do
+		echo "key: $i"
 		if [[ $i == *"@"* ]]; then	
 			gpg --keyserver hkps://keyserver.ubuntu.com --locate-keys $i
 		else			
 			gpg --keyserver hkps://keyserver.ubuntu.com --recv-keys $i
 		fi
 	done
-	gpg --tofu-policy good $(gpg --list-keys $(cat ${srcDir}/gpgkeys) | grep "^      ")
+	gpg --tofu-policy good $(gpg --list-keys $(cat ${path_to_gpg_keys}) | grep "^      ")
 	gpg --import cert/sign.pub
 	bash
 }

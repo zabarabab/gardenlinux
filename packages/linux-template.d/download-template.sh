@@ -50,7 +50,7 @@ mkdir -p ${kernelSrcDir}
 #gpg --import cert/sign.pub > /dev/null
 
 echo "--------------------------"
-import_gpg_keys ${kernelSrcDir} 
+import_gpg_keys ${kernelSrcDir} ${thisDir}/gpgkeys
 
 get_kernel_sources ${kernelSrcDir}
 

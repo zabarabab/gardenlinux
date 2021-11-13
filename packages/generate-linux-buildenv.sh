@@ -51,7 +51,7 @@ if [ -z ${outputDir+x} ]; then echo "output-dir not specified"; print_help;  exi
 if [ -z ${versionFile+x} ]; then echo "version-file not specified"; print_help;  exit 1; fi 
 
 if [[ ! -d ${templateDir} ]]; then echo "templateDir=${templateDir} does not exist"; exit 1; fi
-if [[ ! -d ${outputDir} ]]; then echo "outputDir=${outputDir} does not exist"; exit 1; fi
+if [[ ! -d ${outputDir} ]]; then echo "outputDir=${outputDir} did not exist"; mkdir ${outputDir}; fi
 if [ ! -f ${versionFile} ]; then echo "versionFile=${versionFile} does not exist"; exit 1; fi
 
 . ${versionFile}

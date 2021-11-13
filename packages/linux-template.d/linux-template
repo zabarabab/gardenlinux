@@ -27,7 +27,7 @@ gpg --tofu-policy good $(gpg --list-keys $(cat ${srcDir}/gpgkeys) | grep "^     
 
 kernelSrcDir="gardenkernel-src"
 
-./download-${KERNEL_VERSION}
+${baseDir}/download-${KERNEL_VERSION}.sh
 
 pushd ${kernelSrcDir}
 

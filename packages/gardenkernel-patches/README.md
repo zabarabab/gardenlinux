@@ -1,4 +1,4 @@
-# Garden Linux Patching
+# Garden Linux Kernel Patching
 
 Kernel patches are tightly coupled to the Kernel Version. 
 You find patches we apply to our Garden Linux Kernel in the respective subfolder of this directory.

@@ -34,6 +34,7 @@ packagesDir="$(dirname $0)"
 . ${packagesDir}/.helper
 . ${packagesDir}/LINUX-VERSION
 baseDir="$(dirname $0)/linux-${KERNEL_VERSION}.d"
+patchDir="${baseDir}/patches"
 . ${baseDir}/.kernel-helper
 
 CERT_DIR="${CERTDIR:-/}"
@@ -102,15 +103,8 @@ fi
 #export DEB_BUILD_OPTIONS="nodoc tersee"
 #export DEB_BUILD_PROFILES="nodoc nopython pkg.linux.nosource pkg.linux.notools"
 
-echo "### patching Garden Linux enhancements"
 
-#patch -p1 < $baseDir/rt-0038.patch
-cp $baseDir/fpga-ofs.patch debian/patches
-patch -p1 < $baseDir/fpga-config.patch
-printf "\n# Intel IOFS patches\nfpga-ofs.patch\n" >> debian/series
-CHANGELOG+="  * Added Intel FPGA OFS\n"
-#patch -p1 < $baseDir/mok.patch
-#patch -p1 < $baseDir/series.patch
+${patchDir}/patch.sh ${baseDir}
 
 echo "### setting certificate"
 # to make sure we do not take this accidently

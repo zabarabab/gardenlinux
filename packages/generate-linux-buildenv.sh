@@ -61,9 +61,10 @@ rm -rf ${outputDir}/linux-${KERNEL_VERSION}.d
 mkdir -p ${outputDir}/linux-${KERNEL_VERSION}.d
 cp -r ${templateDir}/* ${outputDir}/linux-${KERNEL_VERSION}.d
 cp ${templateDir}/.kernel-helper ${outputDir}/linux-${KERNEL_VERSION}.d
-
-
 cp ${versionFile} ${outputDir}/linux-${KERNEL_VERSION}.d
+
+cp -r gardenkernel-patches/${KERNEL_VERSION} ${outputDir}/linux-${KERNEL_VERSION}.d/
+
 pushd ${outputDir}
 
 

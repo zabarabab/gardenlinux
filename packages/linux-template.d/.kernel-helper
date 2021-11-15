@@ -33,9 +33,10 @@ get_kernel_sources() {
 
 	if [ -z ${KERNEL_VERSION+x} ]; then echo "KERNEL_VERSION is unset"; return 1; else echo "KERNEL_VERSION is set to '$KERNEL_VERSION'"; fi
 	if [ -z ${KERNEL_RT_VERSION+x} ]; then echo "KERNEL_RT_VERSION is unset"; return 1; else echo "KERNEL_RT_VERSION is set to '$KERNEL_RT_VERSION'"; fi
-	
+		
 
 	echo "### pulling kernel and rt-patches"
+
 
 	wget -O ${bundleDir}/linux-$KERNEL_VERSION.tar.sign \
 	        https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-$KERNEL_VERSION.tar.sign
@@ -78,11 +79,12 @@ get_old_kernel() {
 get_debian_release_env() {
 	if [ -z ${1+x} ]; then echo "First argument of ${FUNCNAME[0]} must be path to bundle dir"; return 1;fi 
 	bundleDir=$1
+	
 	if [ ! -d ${bundleDir} ]; then echo "${FUNCNAME[0]}: ${bundleDir} does not exist"; return 1; fi
-
+	if [ -z ${BUILDENV+x} ]; then echo "BUILDENV is unset"; return 1; else echo "BUILDENV is set to '$BUILDENV'"; fi
+	
 	releaseEnvDir=${bundleDir}/linux-release-env	
 
-	if [ -z ${BUILDENV+x} ]; then echo "BUILDENV is unset"; return 1; else echo "BUILDENV is set to '$BUILDENV'"; fi
 	echo "### cloning the latest and greatest debian release environment to for the kernel"
 	if [ -d ${releaseEnvDir} ]; then
 		pushd ${releaseEnvDir};
@@ -118,9 +120,6 @@ get_ufs5_from_upstream() {
 			https://github.com/sfjro/aufs5-standalone.git ${bundleDir}/aufs5-standalone
 	fi
 
-	pushd ${bundleDir}/aufs5-standalone
-	aufscommit=$(git log -n1 --oneline --no-abbrev-commit | cut -f1 -d' ')
-	popd
 }
 
 

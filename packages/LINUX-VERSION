@@ -8,3 +8,12 @@ KERNEL_ARCH=$(dpkg --print-architecture | awk -F- "{ print \$NF }")
 KERNEL_FLAVOURS="${KERNEL_BASEABI} ${KERNEL_BASEABI}-cloud ${KERNEL_BASEABI}-rt"
 #BUILDENV="HEAD"
 BUILDENV="debian/$KERNEL_DEBIAN"
+
+# Patches must be palced in packages/gardenkernel-patches/${KERNEL_VERSION}
+GARDENKERNEL_PATCHES+=("fpga-config.patch") 
+GARDENKERNEL_PATCHES+=("fpga-ofs.patch") 
+GARDENKERNEL_PATCHES+=("mok.patch") 
+GARDENKERNEL_PATCHES+=("rt-0038.patch") 
+GARDENKERNEL_PATCHES+=("series.patch") 
+
+

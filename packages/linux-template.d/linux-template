@@ -1,9 +1,36 @@
 #!/usr/bin/env bash
 set -euox pipefail
 
+
+print_help() {
+      echo "options:"
+      echo "-h, --help			show brief help"
+      echo "-d, --debug			debug mode of this script"
+}
+
+while test $# -gt 0; do
+  case "$1" in
+	-h|--help)
+		print_help
+		exit 0
+	;;
+	-d|--debug)
+		shift
+      		debug=1
+	;;
+    *) print_help
+      break
+      ;;
+  esac
+done
+
+
+if [ ${debug:-} ]; then
+	set -x
+fi
+
 packagesDir="$(dirname $0)"
 
-echo  1
 . ${packagesDir}/.helper
 . ${packagesDir}/LINUX-VERSION
 baseDir="$(dirname $0)/linux-${KERNEL_VERSION}.d"
@@ -12,10 +39,10 @@ baseDir="$(dirname $0)/linux-${KERNEL_VERSION}.d"
 CERT_DIR="${CERTDIR:-/}"
 CHANGELOG=""
 
-echo "### updating package repsitory"
-sudo apt-get update
-echo "### installing minimal create requirements"
-sudo apt-get install --no-install-recommends -y equivs kernel-wedge python3-debian rsync libdistro-info-perl git quilt
+#echo "### updating package repsitory"
+#sudo apt-get update
+#echo "### installing minimal create requirements"
+#sudo apt-get install --no-install-recommends -y equivs kernel-wedge python3-debian rsync libdistro-info-perl git quilt
 
 echo "### getting the keys of the maintainers"
 for i in $(cat ${baseDir}/gpgkeys); do
@@ -47,8 +74,15 @@ if $(dpkg --compare-versions $KERNEL_DEBIAN lt $KERNEL_VERSION); then
 else
 	cp -R ../linux-$KERNEL_DEBIAN/debian/patches-rt debian/
 fi
+popd
+
 
 echo "### integrating aufs5-patches"
+pushd aufs5-standalone
+aufscommit=$(git log -n1 --oneline --no-abbrev-commit | cut -f1 -d' ')
+popd
+pushd linux-release-env
+
 debian/bin/genpatch-aufs ../aufs5-standalone
 CHANGELOG+="  * [aufs5] Update to $aufscommit\n"
 
@@ -69,6 +103,7 @@ fi
 #export DEB_BUILD_PROFILES="nodoc nopython pkg.linux.nosource pkg.linux.notools"
 
 echo "### patching Garden Linux enhancements"
+
 #patch -p1 < $baseDir/rt-0038.patch
 cp $baseDir/fpga-ofs.patch debian/patches
 patch -p1 < $baseDir/fpga-config.patch

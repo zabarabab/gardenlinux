@@ -20,7 +20,7 @@ import_gpg_keys() {
 		fi
 	done
 	gpg --tofu-policy good $(gpg --list-keys $(cat ${path_to_gpg_keys}) | grep "^      ")
-	gpg --import ${bundleDir}/cert/sign.pub
+	# gpg --import ${bundleDir}/cert/sign.pub
 }
 
 

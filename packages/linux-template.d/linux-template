@@ -53,8 +53,8 @@ for i in $(cat ${baseDir}/gpgkeys); do
 done
 gpg --tofu-policy good $(gpg --list-keys $(cat ${baseDir}/gpgkeys) | grep "^      ")
 
+# Downloading Kernel Sources and Patches is implemented in another file
 kernelSrcDir="${baseDir}/gardenkernel-src"
-
 ${baseDir}/download-${KERNEL_VERSION}.sh
 
 pushd ${kernelSrcDir}
@@ -103,8 +103,10 @@ fi
 #export DEB_BUILD_OPTIONS="nodoc tersee"
 #export DEB_BUILD_PROFILES="nodoc nopython pkg.linux.nosource pkg.linux.notools"
 
-
+# Patching depends on Kernel Version. PatchDir contains patches for this version and a patch.sh script
 ${patchDir}/patch.sh ${baseDir}
+
+
 
 echo "### setting certificate"
 # to make sure we do not take this accidently

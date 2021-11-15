@@ -4,11 +4,13 @@ print_help() {
       echo "options:"
       echo "-h, --help			show brief help"
       echo "-d, --debug			debug mode of this script"
+      echo "-k, --keep-sources		for development. does not delete previous downloaded kernel sources"
       echo "-o, --output-dir DIR	specify where to place the generated files"
       echo "-t, --template-dir DIR	path to template directory to use as base"
       echo "-v, --version-file FILE 	path to env file specifying VERSIONS"	
 }
 
+keepSrc=0
 while test $# -gt 0; do
   case "$1" in
 	-h|--help)
@@ -19,6 +21,10 @@ while test $# -gt 0; do
 		shift
       		debug=1
 	;;
+	-k|--keep-sources)
+		keepSrc=1
+ 		shift
+      	;;
 	-t|--template-dir*)
 		#templateDir=`echo $1 | sed -e 's/^[^=]*=//g'`
 		templateDir=$2
@@ -41,7 +47,6 @@ while test $# -gt 0; do
   esac
 done
 
-
 if [ ${debug:-} ]; then
 	set -x
 fi
@@ -57,13 +62,15 @@ if [ ! -f ${versionFile} ]; then echo "versionFile=${versionFile} does not exist
 . ${versionFile}
 
 # create a copy from template dir
-rm -rf ${outputDir}/linux-${KERNEL_VERSION}.d
+
+if [ ${keepSrc} == 0 ]; then rm -rf ${outputDir}/linux-${KERNEL_VERSION}.d ;fi
 mkdir -p ${outputDir}/linux-${KERNEL_VERSION}.d
+mkdir -p ${outputDir}/linux-${KERNEL_VERSION}.d/patches
 cp -r ${templateDir}/* ${outputDir}/linux-${KERNEL_VERSION}.d
 cp ${templateDir}/.kernel-helper ${outputDir}/linux-${KERNEL_VERSION}.d
 cp ${versionFile} ${outputDir}/linux-${KERNEL_VERSION}.d
 
-cp -r gardenkernel-patches/${KERNEL_VERSION} ${outputDir}/linux-${KERNEL_VERSION}.d/
+cp gardenkernel-patches/${KERNEL_VERSION}/* ${outputDir}/linux-${KERNEL_VERSION}.d/patches/
 
 pushd ${outputDir}
 

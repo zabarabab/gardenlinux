@@ -21,7 +21,7 @@ docker:
 
 .PHONY: kernel-scripts
 kernel-scripts:
-	./generate-linux-buildenv.sh --template-dir linux-template.d --output-dir manual --version-file LINUX-VERSION
+	./generate-linux-buildenv.sh --template-dir linux-template.d --output-dir manual --version-file LINUX-VERSION -k
 
 .PHONY: docker-kernel
 docker-kernel:

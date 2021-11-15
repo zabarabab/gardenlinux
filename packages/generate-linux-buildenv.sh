@@ -70,6 +70,9 @@ cp -r ${templateDir}/* ${outputDir}/linux-${KERNEL_VERSION}.d
 cp ${templateDir}/.kernel-helper ${outputDir}/linux-${KERNEL_VERSION}.d
 cp ${versionFile} ${outputDir}/linux-${KERNEL_VERSION}.d
 
+
+# update LINUX-VERSION file of packages/manual
+cp LINUX-VERSION ${outputDir}/
 cp gardenkernel-patches/${KERNEL_VERSION}/* ${outputDir}/linux-${KERNEL_VERSION}.d/patches/
 
 pushd ${outputDir}

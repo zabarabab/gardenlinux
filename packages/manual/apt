@@ -3,15 +3,15 @@ set -euo pipefail
 
 . $(dirname $0)/.helper
 
-sudo apt-get build-dep -y --no-install-recommends $src 
+sudo apt-get build-dep -y --no-install-recommends -a$ARCH $src
 apt-get source $src
 
 #sudo apt-get remove -y --purge libdb5.3-dev
-cd $src-*/ 
+cd $src-*/
 patch -p1 < /$srcDir/libdb.patch
 dch -lgardenlinux 'remove ftparchive/libdb'
 dch -r ''
 
 donotmove="$(ls ..)"
-debuild
+debuild -a$ARCH
 move_package .. $donotmove

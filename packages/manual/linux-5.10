@@ -18,7 +18,7 @@ gpg --tofu-policy good $(gpg --list-keys $(cat ${srcDir}/gpgkeys) | grep "^     
 echo "### updating package repsitory"
 sudo apt-get update
 echo "### installing minimal create requirements"
-sudo apt-get install --no-install-recommends -y equivs kernel-wedge python3-debian rsync libdistro-info-perl git quilt
+sudo apt-get install --no-install-recommends -y equivs kernel-wedge python3-debian rsync libdistro-info-perl git quilt libelf-dev
 echo "### pulling kernel and rt-patches"
 wget -O linux-$KERNEL_VERSION.tar.sign \
 	https://cdn.kernel.org/pub/linux/kernel/v5.x/linux-$KERNEL_VERSION.tar.sign
@@ -155,15 +155,19 @@ make -f debian/rules orig
 echo "### generate custom control files"
 PYTHONHASHSEED=0 debian/bin/gencontrol.py
 echo "### deviate needed packages and install"
-TMPDIR=.. mk-build-deps debian/control
-sudo apt-get install -y --no-install-recommends -f ../linux-build-deps_*_${KERNEL_ARCH}.deb
+if [ "$ARCH" != "$(dpkg --print-architecture)" ]; then
+	TMPDIR=.. mk-build-deps -B --host-arch $ARCH debian/control
+else
+	TMPDIR=.. mk-build-deps debian/control
+fi
+sudo apt-get install -y --no-install-recommends -f ../linux*build-deps*_${ARCH}.deb
 
 echo "### enabling control file (supposed to fail)"
 make -f debian/rules debian/control-real || /bin/true
 
 donotmove="$(ls ..)"
 echo "### build"
-debuild
+debuild -B -a$ARCH
 mv ../orig/linux_*.tar.xz ..
 rm -rf ../orig
 src=linux

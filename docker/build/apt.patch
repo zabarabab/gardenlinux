@@ -1,0 +1,13 @@
+--- a/apt-pkg/deb/deblistparser.cc
++++ b/apt-pkg/deb/deblistparser.cc
+@@ -119,7 +119,9 @@
+ {
+    unsigned char MA;
+    auto const MultiArch = Section.Find(pkgTagSection::Key::Multi_Arch);
+-   if (MultiArch.empty() == true || MultiArch == "no")
++   if (MultiArch.empty() == true && ArchitectureAll() == true)
++      MA = pkgCache::Version::Foreign;
++   else if (MultiArch.empty() == true || MultiArch == "no")
+       MA = pkgCache::Version::No;
+    else if (MultiArch == "same") {
+       if (ArchitectureAll() == true)

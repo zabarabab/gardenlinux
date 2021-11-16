@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
 . $(dirname $0)/.helper
 
 # preselect media-types
-sudo apt-get install media-types
-sudo apt-get build-dep -y --no-install-recommends $src
+sudo apt-get install -y media-types
+sudo apt-get build-dep -y --no-install-recommends -a$ARCH $src
 apt-get source $src
 
 sudo apt-get remove -y --purge libdb5.3-dev
@@ -18,6 +18,5 @@ dch -r ''
 debian/rules control-file
 
 donotmove="$(ls ..)"
-debuild
+debuild -a$ARCH
 move_package .. $donotmove
-

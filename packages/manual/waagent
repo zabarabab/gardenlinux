@@ -7,7 +7,7 @@ set -euo pipefail
 VERSION="2.2.47-2"
 
 sudo apt-get update
-sudo apt-get build-dep -y --no-install-recommends $src
+sudo apt-get build-dep -y --no-install-recommends -a$ARCH $src
 sudo apt-get install -y debian-keyring quilt
 dget -x http://ftp.debian.org/debian/pool/main/w/waagent/waagent_${VERSION}.dsc
 
@@ -19,5 +19,5 @@ dch -lgardenlinux 'remove tostring() methods for python3.9 / switch ifup/down to
 dch -r ''
 
 donotmove="$(ls ..)"
-debuild
+debuild -a$ARCH
 move_package .. $donotmove

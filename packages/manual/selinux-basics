@@ -3,14 +3,14 @@ set -euo pipefail
 
 . $(dirname $0)/.helper
 
-sudo apt-get build-dep -y --no-install-recommends $src
+sudo apt-get build-dep -y --no-install-recommends -a$ARCH $src
 apt-get source $src
 
 cd $src-*/
 patch -p1 < $srcDir/perl.patch
-dch -lgardenlinux 'moved postfix-nochroot out to separate package dependency on perl for selinux-basic' 
+dch -lgardenlinux 'moved postfix-nochroot out to separate package dependency on perl for selinux-basic'
 dch -r ''
 
 donotmove="$(ls ..)"
-debuild
+debuild -a$ARCH
 move_package .. $donotmove

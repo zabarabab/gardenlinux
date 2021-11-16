@@ -1,6 +1,3 @@
-FROM	$build_base_image as downloader
-
-
 ARG build_base_image=gardenlinux/slim
 FROM	$build_base_image
 
@@ -15,23 +12,23 @@ RUN	mkdir /etc/sudoers.d \
      &&	echo "progress=bar:force:noscroll" >> /etc/wgetrc \
      &&	echo "force-confold\nforce-confdef" > /etc/dpkg/dpkg.cfg.d/forceold
 
-ARG	BUILDARCH=amd64
+RUN apt-get update && apt-get install -y wget ca-certificates build-essential binutils gcc gcc-10 devscripts fakeroot sudo git htop
 
-ADD	https://deb.debian.org/debian/pool/main/g/gcc-defaults/gcc_10.2.1-1_${BUILDARCH}.deb /
-ADD	https://deb.debian.org/debian/pool/main/g/gcc-defaults/g++_10.2.1-1_${BUILDARCH}.deb /
-ADD	https://deb.debian.org/debian/pool/main/g/gcc-defaults/cpp_10.2.1-1_${BUILDARCH}.deb /
+ARG ARCH
 
-RUN	apt-get update \
-     && apt-get install -y wget ca-certificates \
-     &&	if [ "${BUILDARCH}" = "amd64" ] ; then wget https://deb.debian.org/debian/pool/main/g/gcc-defaults/gcc-multilib_10.2.1-1_${BUILDARCH}.deb; fi \
-     &&	apt-get install -y -f /*.deb \
-     &&	apt-mark auto gcc g++ cpp gcc-multilib \
-     &&	rm -f /*.deb \
-     &&	dpkg -P gcc-9-base \
-     &&	apt-get install -y build-essential fakeroot sudo \
-     &&	addgroup --system wheel \
-     &&	adduser dev --disabled-password --gecos dev \
-     &&	adduser dev wheel
+RUN if [ "$ARCH" != "$(dpkg --print-architecture)" ]; then \
+        dpkg --add-architecture $ARCH \
+        && apt-get update \
+        && LINUX_ARCH=$([ "$ARCH" = "arm64" ] && echo "aarch64-linux-gnu" || echo "x86-64-linux-gnu") \
+        && apt-get install -y crossbuild-essential-$ARCH binutils-$LINUX_ARCH gcc-$LINUX_ARCH gcc-10-$LINUX_ARCH; \
+    fi
+
+RUN addgroup --system wheel \
+    && adduser dev --disabled-password --gecos dev \
+    && adduser dev wheel
+
+COPY apt.patch /apt.patch
+RUN cd $(mktemp -d) && apt-get build-dep -y apt && apt-get source apt && cd apt-* && patch -p1 < /apt.patch && dpkg-buildpackage -us -uc -ui && cd .. && dpkg -i *.deb
 
 COPY install-cfssl.sh /setup/
 RUN  /setup/install-cfssl.sh
@@ -40,3 +37,4 @@ USER	dev
 WORKDIR	/home/dev
 
 RUN 	mkdir .gnupg && chmod 700 .gnupg
+RUN git config --global http.postBuffer $((256 * 1024 * 1024))

@@ -9,7 +9,7 @@ BUILDIMAGE="gardenlinux/build-$(ARCH)"
 BUILDVERSION=$$(../bin/garden-version)
 BUILDEPOCH=$$(../bin/garden-version --epoch)
 
-PACKAGES=apt dracut iproute2 pam python3.9 linux-5.10 linux-5.10-signed selinux-basics waagent
+PACKAGES=apt cyrus-sasl2 dracut iproute2 pam python3.9 linux-5.10 linux-5.10-signed selinux-basics waagent
 .PHONY: $(PACKAGES)
 
 .PHONY: all

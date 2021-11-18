@@ -125,10 +125,10 @@ pxe-dev: container-build cert/sign.pub
 	./build.sh  --arch=$(ARCH) --no-build --features server,cloud,_dev,_pxe $(BUILDDIR)/pxe-dev $(VERSION)
 
 pxev: container-build cert/sign.pub
-	./build.sh  --arch=$(ARCH) --no-build --features server,cloud,vhost,_pxe $(BUILDDIR)/pxe $(VERSION)
+	./build.sh  --arch=$(ARCH) --no-build --features server,cloud,vhost,_pxe $(BUILDDIR)/pxev $(VERSION)
 
 pxev-dev: container-build cert/sign.pub
-	./build.sh  --arch=$(ARCH) --no-build --features server,cloud,vhost,_dev,_pxe $(BUILDDIR)/pxe $(VERSION)
+	./build.sh  --arch=$(ARCH) --no-build --features server,cloud,vhost,_dev,_pxe $(BUILDDIR)/pxev-dev $(VERSION)
 
 anvil: container-build cert/sign.pub
 	./build.sh  --arch=$(ARCH) --no-build --features server,cloud-anvil,kvm,_dev $(BUILDDIR)/anvil $(VERSION)

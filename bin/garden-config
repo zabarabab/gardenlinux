@@ -5,7 +5,6 @@
 set -Eeuo pipefail
 
 thisDir="$(dirname "$(readlink -f "$BASH_SOURCE")")"
-featureDir="$thisDir/../features"
 source "$thisDir/.constants.sh" \
 	--flags 'features:,arch:' \
 	-- \
@@ -58,7 +57,7 @@ for i in $(echo "base,$features" | tr ',' '\n' | norm_features); do
 		$thisDir/garden-chroot $targetDir env arch="$arch" /tmp/$(basename $featureDir)/$i/exec.config | indent
 	fi
 done
-rm -rf $targetDir/tmp/$featureDir
+rm -r "$targetDir/tmp/$(basename $featureDir)"
 
 printf "## deleting file.exclude\n"
 set -o noglob

@@ -18,5 +18,5 @@ dch -r ''
 debian/rules control-file
 
 donotmove="$(ls ..)"
-debuild -a$ARCH
+DEB_BUILD_OPTIONS="nobench nocheck nopgo" debuild -a$ARCH
 move_package .. $donotmove

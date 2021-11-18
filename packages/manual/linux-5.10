@@ -155,12 +155,10 @@ make -f debian/rules orig
 echo "### generate custom control files"
 PYTHONHASHSEED=0 debian/bin/gencontrol.py
 echo "### deviate needed packages and install"
-if [ "$ARCH" != "$(dpkg --print-architecture)" ]; then
-	TMPDIR=.. mk-build-deps -B --host-arch $ARCH debian/control
-else
-	TMPDIR=.. mk-build-deps debian/control
-fi
-sudo apt-get install -y --no-install-recommends -f ../linux*build-deps*_${ARCH}.deb
+TMPDIR=.. mk-build-deps -B --host-arch $ARCH debian/control
+TMPDIR=.. mk-build-deps -A debian/control
+sudo apt-get install -y --no-install-recommends -f ../linux-build-deps-indep_*_all.deb
+sudo apt-get install -y --no-install-recommends -f ../linux-*build-deps-depends_*_${ARCH}.deb
 
 echo "### enabling control file (supposed to fail)"
 make -f debian/rules debian/control-real || /bin/true
@@ -168,6 +166,7 @@ make -f debian/rules debian/control-real || /bin/true
 donotmove="$(ls ..)"
 echo "### build"
 debuild -B -a$ARCH
+DEB_BUILD_OPTIONS="nodoc" debuild -A
 mv ../orig/linux_*.tar.xz ..
 rm -rf ../orig
 src=linux

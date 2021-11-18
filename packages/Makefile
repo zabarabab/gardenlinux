@@ -5,7 +5,7 @@ CERTDIR=$(realpath ../cert)
 DEBFULLNAME="Garden Linux Maintainers"
 DEBEMAIL="contact@gardenlinux.io"
 ARCH ?= $(shell [ "$$(uname -m)" = "aarch64" ] && echo "arm64" || echo "amd64")
-BUILDIMAGE="gardenlinux/build-$(ARCH)"
+BUILDIMAGE="gardenlinux/build-deb-$(ARCH)"
 BUILDVERSION=$$(../bin/garden-version)
 BUILDEPOCH=$$(../bin/garden-version --epoch)
 
@@ -22,6 +22,8 @@ sign:
 .PHONY: docker
 docker:
 	make --directory=../docker ARCH=$(ARCH) build-deb
+
+linux-5.10-signed: linux-5.10
 
 #--volume $(MANUALDIR)/../quiltrc:/home/dev/.quiltrc
 .PHONY: manual

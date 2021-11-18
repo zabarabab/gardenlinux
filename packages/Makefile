@@ -21,7 +21,7 @@ sign:
 
 .PHONY: docker
 docker:
-	make --directory=../docker ARCH=$(ARCH) build
+	make --directory=../docker ARCH=$(ARCH) build-deb
 
 #--volume $(MANUALDIR)/../quiltrc:/home/dev/.quiltrc
 .PHONY: manual

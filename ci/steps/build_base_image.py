@@ -24,7 +24,7 @@ def build_base_image(
     dockerfile_relpath = os.path.join(repo_dir, "docker", "build-image", "Dockerfile")
     print(f'repo_dir is: {repo_dir}')
 
-    docker_dirs = ['build', 'build-deb', 'build-image']
+    docker_dirs = ['build-deb', 'build-image']
 
     go_files = glob.glob(os.path.join(repo_dir, "bin", '*.go'), recursive=False)
     for f in go_files:

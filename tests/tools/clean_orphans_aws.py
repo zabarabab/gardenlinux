@@ -110,6 +110,7 @@ def clean_snapshot(client, force: bool = False):
 
 
 def clean_instances(client, force: bool = False):
+    waiter = client.get_waiter('instance_terminated')
     instances = client.describe_instances(
         Filters=[
             {'Name': 'tag:component', 'Values': ['gardenlinux']},
@@ -120,11 +121,13 @@ def clean_instances(client, force: bool = False):
     instance_count = 0
 
     for r in instances['Reservations']:
-        instance_count += len(r['Instances'])
         for i in r['Instances']:
-            print(f"ID: {i['InstanceId']}\tUsed AMI: {i['ImageId']}")
-            print(f"Type: {i['InstanceType']}")
-            print(f"IP address: {i['PrivateIpAddress']}")
+            if i['State']['Name'] == 'terminated':
+                continue
+            instance_count += 1
+            print(f"ID:\t{i['InstanceId']}\t\tUsed AMI:\t{i['ImageId']}")
+            print(f"Type:\t{i['InstanceType']}")
+            print(f"IP:\t{i['PublicDnsName']}")
             print("Tags:")
             for t in i['Tags']:
                 print(f"\t{t['Key']}: {t['Value']}")
@@ -132,7 +135,9 @@ def clean_instances(client, force: bool = False):
             if not force:
                 delete = input(f"\nTerminate this instance (y/N)? ")
             if delete == "y" or force:
-                client.terminate_instances(InstanceIds = i['InstanceId'])
+                client.terminate_instances(InstanceIds = [i['InstanceId']])
+                print(f"Waiting for instance {i['InstanceId']} to be terminated...")
+                waiter.wait(InstanceIds=[i['InstanceId']])
 
     if instance_count == 0:
         print("No instances originating from tests found.")
@@ -196,4 +201,3 @@ if __name__ == "__main__":
     clean_keypairs(ec2_client)
     print(f"\nS3 buckets:")
     clean_buckets(s3_client)
-    

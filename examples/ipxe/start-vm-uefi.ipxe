@@ -1,0 +1,6 @@
+#!ipxe
+
+set pxeserver gardenlinuxbootlocal.pxe
+
+kernel http://${pxeserver}/rootfs.linux.signed
+boot

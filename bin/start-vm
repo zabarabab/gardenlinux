@@ -20,9 +20,11 @@ arch=x86_64
 memory=2Gi
 monitor=1
 bridge=
+tap=
 daemonize=
 pxe=
 pxefile=$thisDir/../examples/ipxe/start-vm.ipxe
+pxefileuefi=$thisDir/../examples/ipxe/start-vm-uefi.ipxe
 portbase=2223
 port=$portbase; while ss -tul | grep :$port &> /dev/null; do (( ++port )); done
 uefi=
@@ -37,7 +39,7 @@ mac="$(printf '02:%02x:%02x:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((R
 virtOpts=( )
 source "${thisDir}/.constants.sh" \
 	--flags 'daemonize,uefi,skipkp,vnc' \
-	--flags 'cpu:,mem:,bridge:,port:,mac:,arch:' \
+	--flags 'cpu:,mem:,bridge:,tap:,port:,mac:,arch:' \
 	--flags 'pxe:' \
 	--flags 'ueficode:,uefivars:' \
 	--usage '[ --daemonize ] [ --cpu:<#> ] [ --mem:<size> ] [ --pxe:<dir> ] [<image file>[,<size>]]*' \
@@ -56,6 +58,7 @@ source "${thisDir}/.constants.sh" \
 		set (default: $uefiVars)
 
 --bridge <if>	disables host networking and bridges the machine to the specified interface
+--tap <if>	disables host networking and uses a tap device
 --port <int>	specifies the local ssh port. this port is mounted to the running machine, 
 		not if --bridge is specified (default: $portbase)
 --mac <macaddr> the mac address is usually randomized. It is used to identify the monitoring
@@ -90,6 +93,7 @@ while true; do
 		--ueficode)     uefiCode="$1";  shift ;;
 		--uefivars)     uefiVars="$1";  shift ;;
 		--bridge ) 	bridge="$1";  	shift ;;
+		--tap ) 	tap="$1";  	shift ;;
 		--pxe )         pxe="$(realpath $1)";  shift ;;
 		--port)         port="$1";	shift ;;
 		--skipkp) 	keypress=; 	;;
@@ -134,7 +138,7 @@ while (( "$#" )); do
 done
 [ $diskcount -gt 0 -o "$pxe" ] || eusage 'missing bootdisk. boot via --pxe, provide tmpdisk via --disk or provide bootdisk image file'
 
-[ $(id -u) == 0 ] && virtOpts=(	"-runas nobody" )
+#[ $(id -u) == 0 ] && virtOpts=(	"-runas nobody" )
 
 [[ "${memory: -1}" =~ [0-9] ]] && memory="${memory}Mi"
 memory=$(numfmt --from=auto --suffix="B" --format "%f" ${memory} | head -c-2)
@@ -201,18 +205,23 @@ fi
 
 # pxe
 if [ $pxe ]; then
-	[ -e "$targetDir/$mac.ipxe" ] || cp $pxefile $targetDir/$mac.ipxe
+	if [ $uefi ]; then
+		[ -e "${pxe}/boot.pxe" ] || cp "$pxefileuefi" "${pxe}/boot.pxe"
+	else
+		[ -e "${pxe}/boot.pxe" ] || cp "$pxefile" "${pxe}/boot.pxe"
+	fi
 
-	# modify the boot.ipxe to load the proper kernel and initramfs
-	sed -i "s/PATHGOESHERE//g;s/IPADDRESSGOESHERE/10.0.2.2/g" $targetDir/$mac.ipxe
-	
+	if [ ! $tap ]; then
+		tap="gltap0"
+	fi
 	virtOpts+=( -boot order=nc )
 fi
 
 # handling the network
 			virtOpts+=(	"-device virtio-net-pci,netdev=net0,mac=$macfull" )
 if [ $bridge ]; then 	virtOpts+=(	"-netdev bridge,id=net0,br=${bridge}" )
-elif [ $pxe ]; then	virtOpts+=( 	"-netdev user,id=net0,hostfwd=tcp::$port-:22,hostname=garden,tftp=$targetDir,bootfile=$mac.ipxe" )
+elif [ $tap ]; then     virtOpts+=(	"-netdev tap,id=net0,ifname=${tap},script=no,downscript=no" )
+#elif [ $pxe ]; then	virtOpts+=( 	"-netdev tap,id=net0,ifname=${tap},hostfwd=tcp::$port-:22,hostname=garden" )
 else			virtOpts+=( 	"-netdev user,id=net0,hostfwd=tcp::$port-:22,hostname=garden" )
 fi
 [ $bridge ] && ( [ -e /sys/class/net/$bridge/bridge ] || eusage "interface $bridge is no bridge" )
@@ -224,7 +233,9 @@ printf "  starting VM(UUID:%s) with MAC:%s in %s\n" $uuid $macfull $targetDir
 [ $pxe ]	&& printf "  pxeboot: %s.ipxe\n" $mac
 [ $pxe ]	&& printf "  pxeboot: files served from %s\n" "$pxe"
 [ $bridge ]	&& printf "  interface: %s  bridged\n" $bridge
-[ $bridge ]	|| printf "  sshport: %s  unbridged\n" $port
+[ $bridge ]	&& printf "  interface: %s  bridged\n" $bridge
+[ $tap ]        && printf "  interface: %s tap\n" $tap
+[ $bridge $tap ] || printf "  sshport: %s  unbridged\n" $port
 [ $vnc ] 	&& printf "  vncport: %s\n" $(( vncport + 5900 ))
 [ $uefi ]	&& printf "  uefi boot enabled. %s.vars stores efivars\n" $mac
 for i in "${inflatelist[@]}"; do
@@ -236,15 +247,33 @@ printf '%s ' "${virtOpts[@]}";printf "\n" ) | sed 's/ /!/g;s/!-/ -/g' | fold -s 
 
 # pxe helper container
 if [ $pxe ]; then
-	containerName=$(cat /proc/sys/kernel/random/uuid)
+	nginxName="gardenlinuxbootlocal.pxe"
+	pxeName="gl-pxe-dns-dhcp"
 	function stop(){
 		echo "stopping helper for pxe"
-		docker stop -t 0 $1
+		docker stop -t 0 $@
 		echo "everything stopped..."
+		echo "cleaning docker network / tap"
+		docker network rm glnet
+		sudo ip link delete gltap0
+		echo "all cleaned up"
 	}
-	trap 'stop $containerName' EXIT
-	echo "starting helper container"
-	docker run -it --rm -d -p 127.0.0.1:8888:80 --name ${containerName} -v ${pxe}:/usr/share/nginx/html:ro nginx
+	trap 'stop $pxeName $nginxName' EXIT
+	echo "starting helper containers"
+	make --directory=${thisDir}/../docker pxe-image > /dev/null
+
+	# create docker network and tap
+	docker network create -d bridge \
+	--subnet=10.124.0.0/16 \
+	-o "com.docker.network.bridge.host_binding_ipv4"="0.0.0.0" \
+	-o "com.docker.network.bridge.name"="glbr" \
+	glnet
+	sudo ip tuntap add gltap0 mode tap
+	sudo ip link set dev gltap0 up
+	sudo ip link set gltap0 master glbr
+
+	docker run -ti --network glnet --cap-add=NET_ADMIN --rm -d --name ${pxeName} -v ${thisDir}/../examples/ipxe/dnsmasq.conf:/dnsmasq.conf:ro "gardenlinux/pxe-image" "-C" "/dnsmasq.conf" 
+	docker run -ti --network glnet --rm -d --name ${nginxName} --rm -v ${thisDir}/../examples/ipxe/nginx.conf:/etc/nginx/conf.d/default.conf -v ${pxe}:/usr/share/nginx/html:ro nginx
 fi
 
 ### from here on things are actually done!!!

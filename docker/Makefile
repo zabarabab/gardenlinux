@@ -39,6 +39,10 @@ build-kernelmodule: build
 	cp ../.packages/main/l/linux/linux-headers*$(KERNEL_VERSION)*.deb build-kernelmodule/packages/ || (echo "Error: Build Kernel packages first." && exit 1)
 	@docker build -t gardenlinux/build-kernelmodule:$(KERNEL_VERSION) build-kernelmodule
 
+.PHONY: pxe-image
+pxe-image: needslim
+	@docker build -t gardenlinux/pxe-image pxe-image
+
 .PHONY: clean
 clean:
 	rm -rf integration-test/_pipfiles

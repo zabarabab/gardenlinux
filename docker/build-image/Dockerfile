@@ -25,6 +25,7 @@ RUN	apt-get update \
 		python3-mako \
 		qemu-user-static \
 		qemu-utils \
+		sbsigntool binutils \
 		cpio \
      &&	rm -rf /var/lib/apt/lists/*
 

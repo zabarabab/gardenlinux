@@ -6,12 +6,12 @@ check() {
 }
 
 depends() {
-    echo "fs-lib dracut-systemd systemd-networkd"
+    echo "fs-lib dracut-systemd systemd-networkd systemd-resolved"
 }
 
 install() {
     #inst_multiple grep sfdisk growpart udevadm awk mawk sed rm readlink
-    inst_multiple curl grep sfdisk awk mawk file sha256sum
+    inst_multiple curl grep sfdisk awk mawk file sha256sum "$sysusers"/systemd-resolve.conf systemd-analyze
    
     inst_simple "$moddir/live-get-squashfs.service" ${systemdsystemunitdir}/live-get-squashfs.service
     inst_simple "$moddir/gl-end.service" ${systemdsystemunitdir}/gl-end.service
@@ -33,4 +33,7 @@ install() {
     # ignition environment
     inst_script "$moddir/ignition-env-generator.sh" $systemdutildir/system-generators/ignition-env-generator
     inst_simple "$moddir/ignition-files.env" /etc/ignition-files.env
+
+    # sysusers fix https://github.com/dracutdevs/dracut/issues/1656
+    inst_simple "$moddir/sysusers.conf" "$systemdsystemunitdir/systemd-sysusers.service.d/sysusers-dracut.conf"
 }

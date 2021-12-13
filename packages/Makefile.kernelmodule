@@ -1,0 +1,10 @@
+.PHONY: all
+all: amzn-ena
+
+%:
+	lkm/$@
+
+.PHONY: clean
+clean:
+	sudo rm -rf ena*
+	sudo rm -rf dkms/

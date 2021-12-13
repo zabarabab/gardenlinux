@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+set -euox pipefail
+
+PKG_NAME="ena-dkms"
+PKG_VERSION=2.6.0
+
+
+SCRIPT_DIR="$(dirname "$(readlink -f "$BASH_SOURCE")")"
+BASE_DIR="${SCRIPT_DIR}/${PKG_NAME}.d"
+COPYRIGHT_FILE="${BASE_DIR}/copyright"
+
+
+
+echo "### get ${PKG_NAME} module sources"
+mkdir ${PKG_NAME}-${PKG_VERSION}
+cd ${PKG_NAME}-${PKG_VERSION}
+
+wget -O ${PKG_NAME}_${PKG_VERSION}.orig.tar.gz "https://github.com/amzn/amzn-drivers/archive/refs/tags/ena_linux_${PKG_VERSION}.tar.gz"
+
+tar -xzf ${PKG_NAME}_${PKG_VERSION}.orig.tar.gz 
+
+cp -r amzn-drivers-ena_linux_${PKG_VERSION}/kernel/linux/ena .
+cp -r amzn-drivers-ena_linux_${PKG_VERSION}/kernel/linux/common/ .
+
+rm -r amzn-drivers-ena_linux_${PKG_VERSION}
+rm ${PKG_NAME}_${PKG_VERSION}.orig.tar.gz 
+
+dh_make --copyright gpl2  --single --yes --createorig
+
+
+echo "### clean example files"
+pushd debian
+rm -f ena-docs.docs ena.cron.d.ex ena.doc-base.ex manpage.1.ex manpage.md.ex manpage.sgml.ex manpage.xml.ex postinst.ex postrm.ex preinst.ex prerm.ex salsa-ci.yml.ex watch.ex
+popd || exit 1
+
+
+
+echo "### Setup copyright"
+cp "${COPYRIGHT_FILE}" debian/copyright
+
+
+echo "### Fill changelog"
+sudo cat <<EOM | sudo tee debian/changelog
+ena-dkms (2.6.0-0gardenlinux1) UNRELEASED; urgency=medium
+
+  * Initial debian Package of amazon's ena driver for Garden Linux
+
+ -- Garden Linux Maintainers <contact@gardenlinux.io>  Mon, 06 Dec 2021 13:04:57 +0000
+EOM
+
+
+echo "### Setup control file"
+
+sudo cat <<EOM | sudo tee debian/control
+Source: ${PKG_NAME}
+Section: network
+Priority: optional
+Maintainer: Garden Linux Maintainers <contact@gardenlinux.io>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Rules-Requires-Root: no
+
+Package: ${PKG_NAME}
+Architecture: any
+Depends: dkms
+Description: Amazon's ena driver for garden linux
+EOM
+
+echo "### setup dkms.conf"
+sudo cat <<EOM | sudo tee debian/dkms.conf
+PACKAGE_NAME="ena"
+PACKAGE_VERSION="${PKG_VERSION}"
+CLEAN="make -C ena clean"
+MAKE="make -C ena BUILD_KERNEL=\$kernelver"
+BUILT_MODULE_NAME[0]="ena"
+BUILT_MODULE_LOCATION="ena"
+DEST_MODULE_LOCATION[0]="/updates"
+DEST_MODULE_NAME[0]="ena"
+AUTOINSTALL="yes"
+EOM
+
+sudo cat <<EOM | sudo tee debian/REAMDE.debian
+ena for Debian
+-------------
+Please see https://github.com/amzn/amzn-drivers/tree/master/kernel/linux/ena for a description of the ena driver.
+
+* Debian Package of amazon's ena driver for Garden Linux
+
+ -- Garden Linux Maintainers <contact@gardenlinux.io>  Mon, 06 Dec 2021 13:04:57 +0000
+EOM
+
+
+sudo cat <<EOM | sudo tee debian/${PKG_NAME}.install
+ena                       usr/src/${PKG_NAME}-${PKG_VERSION}
+common                    usr/src/${PKG_NAME}-${PKG_VERSION}
+debian/dkms.conf          usr/src/${PKG_NAME}-${PKG_VERSION}
+EOM
+
+
+echo "### Create DKMS packages"
+debuild
+

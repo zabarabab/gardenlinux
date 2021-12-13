@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euox pipefail
+
+PKG_NAME="ena"
+PKG_VERSION=2.6.0
+SCRIPT_DIR="$(dirname "$(readlink -f "$BASH_SOURCE")")"
+BASE_DIR="${SCRIPT_DIR}/${PKG_NAME}.d"
+COPYRIGHT_FILE="${BASE_DIR}/copyright"
+
+. KERNEL_VERSION
+
+# No official ena-dkms package available
+if [ ! -d /usr/src/${PKG_NAME}-dkms-${PKG_VERSION} ]; then
+    echo "### install src file"
+    make ena-dkms
+    sudo dpkg -i ${PKG_NAME}-dkms_${PKG_VERSION}*.deb
+else
+    echo "### ${PKG_NAME} src files exist"
+
+fi
+
+
+dkms_tree=${WORKDIR}/dkms
+sign_tool=${WORKDIR}/lkm/ena.d/sign-helper.sh
+mkdir -p dkms
+for i in ${KERNEL_FLAVOURS}; do
+    
+    # RT Kernel not supported by ENA Driver
+    if [[ ${i} == *"rt"* ]]; then continue; fi
+
+    cat ${WORKDIR}/lkm/ena.d/framework.conf
+
+	dkms build ${PKG_NAME}-dkms/${PKG_VERSION} --dkmsframework ${WORKDIR}/lkm/ena.d/framework.conf -k $i-${KERNEL_ARCH}
+    dkms mkbmdeb ${PKG_NAME}-dkms/${PKG_VERSION} --dkmsframework ${WORKDIR}/lkm/ena.d/framework.conf -k $i-${KERNEL_ARCH}
+done
+
+targetpath="main/e/ena"
+echo "moving to $BUILDTARGET/$targetpath"
+sudo mkdir --parent $BUILDTARGET/$targetpath
+sudo mv -v dkms/${PKG_NAME}-dkms/${PKG_VERSION}/bmdeb/* $BUILDTARGET/$targetpath

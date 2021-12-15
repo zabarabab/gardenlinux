@@ -392,7 +392,7 @@ bootstrap_kernel_build() {
 	fi
 
 	# if debian is older then our patchset, then we have to generate it ourself
-	# NOTE: 
+	# NOTE: in this case, we might need to apply patches to the RT patchset to make them work 
 	if dpkg --compare-versions "$KERNEL_DEBIAN" lt "$KERNEL_VERSION"; then
 	        gl_log "integrating rt-patches"
 

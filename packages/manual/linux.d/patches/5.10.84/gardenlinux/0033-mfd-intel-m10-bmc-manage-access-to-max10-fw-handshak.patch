@@ -1,0 +1,208 @@
+From 4be539003780315ba58c43a36e4f9f446af5e5b4 Mon Sep 17 00:00:00 2001
+From: Xu Yilun <yilun.xu@intel.com>
+Date: Wed, 28 Oct 2020 15:50:51 -0700
+Subject: [PATCH 33/39] mfd: intel-m10-bmc: manage access to max10 fw handshake
+ registers
+
+Manage access to NIOS FW handshakes by using a rw semaphore
+to prevent accesses to handshake registers during a secure
+update.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+---
+ drivers/mfd/intel-m10-bmc.c       | 86 +++++++++++++++++++++++++++++++
+ include/linux/mfd/intel-m10-bmc.h | 35 ++++++++++---
+ 2 files changed, 114 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/mfd/intel-m10-bmc.c b/drivers/mfd/intel-m10-bmc.c
+index adbfb17713b1..7f5d6b686c64 100644
+--- org/drivers/mfd/intel-m10-bmc.c
++++ new/drivers/mfd/intel-m10-bmc.c
+@@ -38,6 +38,91 @@ m10bmc_init_cells_platdata(struct intel_m10bmc_platdata *pdata,
+ 	}
+ }
+ 
++static const struct regmap_range n3000_fw_handshake_regs[] = {
++	regmap_reg_range(M10BMC_TELEM_START, M10BMC_TELEM_END),
++};
++
++int m10bmc_fw_state_enter(struct intel_m10bmc *m10bmc,
++			  enum m10bmc_fw_state new_state)
++{
++	int ret = 0;
++
++	if (new_state == M10BMC_FW_STATE_NORMAL)
++		return -EINVAL;
++
++	down_write(&m10bmc->bmcfw_lock);
++
++	if (m10bmc->bmcfw_state == M10BMC_FW_STATE_NORMAL)
++		m10bmc->bmcfw_state = new_state;
++	else if (m10bmc->bmcfw_state != new_state)
++		ret = -EBUSY;
++
++	up_write(&m10bmc->bmcfw_lock);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(m10bmc_fw_state_enter);
++
++void m10bmc_fw_state_exit(struct intel_m10bmc *m10bmc)
++{
++	down_write(&m10bmc->bmcfw_lock);
++
++	m10bmc->bmcfw_state = M10BMC_FW_STATE_NORMAL;
++
++	up_write(&m10bmc->bmcfw_lock);
++}
++EXPORT_SYMBOL_GPL(m10bmc_fw_state_exit);
++
++static bool is_handshake_sys_reg(unsigned int offset)
++{
++	return regmap_reg_in_ranges(offset, n3000_fw_handshake_regs,
++				    ARRAY_SIZE(n3000_fw_handshake_regs));
++}
++
++int m10bmc_sys_read(struct intel_m10bmc *m10bmc, unsigned int offset,
++		    unsigned int *val)
++{
++	int ret;
++
++	if (!is_handshake_sys_reg(offset))
++		return m10bmc_raw_read(m10bmc, M10BMC_SYS_BASE + (offset), val);
++
++	down_read(&m10bmc->bmcfw_lock);
++
++	if (m10bmc->bmcfw_state == M10BMC_FW_STATE_SEC_UPDATE)
++		ret = -EBUSY;
++	else
++		ret = m10bmc_raw_read(m10bmc, M10BMC_SYS_BASE + (offset), val);
++
++	up_read(&m10bmc->bmcfw_lock);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(m10bmc_sys_read);
++
++int m10bmc_sys_update_bits(struct intel_m10bmc *m10bmc, unsigned int offset,
++			   unsigned int msk, unsigned int val)
++{
++	int ret;
++
++	if (!is_handshake_sys_reg(offset))
++		return regmap_update_bits(m10bmc->regmap,
++					  M10BMC_SYS_BASE + (offset), msk, val);
++
++	down_read(&m10bmc->bmcfw_lock);
++
++	if (m10bmc->bmcfw_state == M10BMC_FW_STATE_SEC_UPDATE)
++		ret = -EBUSY;
++	else
++		ret = regmap_update_bits(m10bmc->regmap,
++					 M10BMC_SYS_BASE + (offset), msk, val);
++
++	up_read(&m10bmc->bmcfw_lock);
++
++	return ret;
++}
++EXPORT_SYMBOL_GPL(m10bmc_sys_update_bits);
++
+ static struct regmap_config intel_m10bmc_regmap_config = {
+ 	.reg_bits = 32,
+ 	.val_bits = 32,
+@@ -123,6 +208,7 @@ static int intel_m10_bmc_spi_probe(struct spi_device *spi)
+ 	if (!ddata)
+ 		return -ENOMEM;
+ 
++	init_rwsem(&ddata->bmcfw_lock);
+ 	ddata->dev = dev;
+ 
+ 	ddata->regmap =
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index 64a82949f5cc..33d4b66281cb 100644
+--- org/include/linux/mfd/intel-m10-bmc.h
++++ new/include/linux/mfd/intel-m10-bmc.h
+@@ -8,6 +8,7 @@
+ #define __MFD_INTEL_M10_BMC_H
+ 
+ #include <linux/regmap.h>
++#include <linux/rwsem.h>
+ 
+ #define M10BMC_LEGACY_SYS_BASE		0x300400
+ #define M10BMC_SYS_BASE			0x300800
+@@ -31,6 +32,10 @@
+ #define SERDES_VERSION			GENMASK(15, 0)
+ #define SBUS_VERSION			GENMASK(31, 16)
+ 
++/* Telemetry registers */
++#define M10BMC_TELEM_START		0x100
++#define M10BMC_TELEM_END		0x33c
++
+ /* Secure update doorbell register, in system register region */
+ #define M10BMC_DOORBELL			0x400
+ 
+@@ -126,14 +131,22 @@ struct intel_m10bmc_platdata {
+ 	struct intel_m10bmc_retimer_pdata *retimer;
+ };
+ 
++enum m10bmc_fw_state {
++	M10BMC_FW_STATE_NORMAL,
++	M10BMC_FW_STATE_SEC_UPDATE,
++};
++
+ /**
+  * struct intel_m10bmc - Intel MAX 10 BMC parent driver data structure
+  * @dev: this device
+  * @regmap: the regmap used to access registers by m10bmc itself
++ * @bmcfw_state: BMC firmware running state.
+  */
+ struct intel_m10bmc {
+ 	struct device *dev;
+ 	struct regmap *regmap;
++	struct rw_semaphore bmcfw_lock;
++	enum m10bmc_fw_state bmcfw_state;
+ };
+ 
+ /*
+@@ -141,6 +154,7 @@ struct intel_m10bmc {
+  *
+  * m10bmc_raw_read - read m10bmc register per addr
+  * m10bmc_sys_read - read m10bmc system register per offset
++ * m10bmc_sys_update_bits - update m10bmc system register per offset
+  */
+ static inline int
+ m10bmc_raw_read(struct intel_m10bmc *m10bmc, unsigned int addr,
+@@ -156,15 +170,22 @@ m10bmc_raw_read(struct intel_m10bmc *m10bmc, unsigned int addr,
+ 	return ret;
+ }
+ 
++int m10bmc_sys_read(struct intel_m10bmc *m10bmc, unsigned int offset,
++		    unsigned int *val);
++
++int m10bmc_sys_update_bits(struct intel_m10bmc *m10bmc, unsigned int offset,
++			   unsigned int msk, unsigned int val);
++
+ /*
+- * The base of the system registers could be configured by HW developers, and
+- * in HW SPEC, the base is not added to the addresses of the system registers.
++ * Track the state of the firmware, as it is not available for
++ * register handshakes during secure updates.
+  *
+- * This macro helps to simplify the accessing of the system registers. And if
+- * the base is reconfigured in HW, SW developers could simply change the
+- * M10BMC_SYS_BASE accordingly.
++ * m10bmc_fw_state_enter - firmware is unavailable for handshakes
++ * m10bmc_fw_state_exit  - firmware is available for handshakes
+  */
+-#define m10bmc_sys_read(m10bmc, offset, val) \
+-	m10bmc_raw_read(m10bmc, M10BMC_SYS_BASE + (offset), val)
++int m10bmc_fw_state_enter(struct intel_m10bmc *m10bmc,
++			  enum m10bmc_fw_state new_state);
++
++void m10bmc_fw_state_exit(struct intel_m10bmc *m10bmc);
+ 
+ #endif /* __MFD_INTEL_M10_BMC_H */
+-- 
+2.34.1
+

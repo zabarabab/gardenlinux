@@ -1,0 +1,127 @@
+From 06d847d8e36e3e2c0513390a68b66d067cf1b696 Mon Sep 17 00:00:00 2001
+From: Xu Yilun <yilun.xu@intel.com>
+Date: Mon, 9 Mar 2020 23:41:09 +0800
+Subject: [PATCH 10/39] fpga: dfl: export network configuration info for DFL
+ based FPGA
+
+This patch makes preparation for supporting DFL Ether Group private
+feature driver, which reads bitstream_id.vendor_net_cfg field to
+determin the interconnection of network components on FPGA device.
+
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+Reviewed-by: Wu Hao <hao.wu@intel.com>
+Reviewed-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+----
+v2: No change
+v3: delete NULL check for dfl_get_bitstream_id() &
+    dfl_dev_get_vendor_net_cfg()
+v4: fix failure of getting vendor net cfg on dfl dev probe.
+     dfl_devices in fme could get its fme device directly by its
+     parent. For other types of dfl_devices, the API still get the
+     fme_dev through cdev.
+---
+ drivers/fpga/dfl-fme-main.c | 10 ++--------
+ drivers/fpga/dfl.c          | 21 +++++++++++++++++++++
+ drivers/fpga/dfl.h          | 12 ++++++++++++
+ include/linux/dfl.h         |  2 ++
+ 4 files changed, 37 insertions(+), 8 deletions(-)
+
+diff --git a/drivers/fpga/dfl-fme-main.c b/drivers/fpga/dfl-fme-main.c
+index 77ea04d4edbe..a2b8ba0bf291 100644
+--- org/drivers/fpga/dfl-fme-main.c
++++ new/drivers/fpga/dfl-fme-main.c
+@@ -46,14 +46,8 @@ static DEVICE_ATTR_RO(ports_num);
+ static ssize_t bitstream_id_show(struct device *dev,
+ 				 struct device_attribute *attr, char *buf)
+ {
+-	void __iomem *base;
+-	u64 v;
+-
+-	base = dfl_get_feature_ioaddr_by_id(dev, FME_FEATURE_ID_HEADER);
+-
+-	v = readq(base + FME_HDR_BITSTREAM_ID);
+-
+-	return scnprintf(buf, PAGE_SIZE, "0x%llx\n", (unsigned long long)v);
++	return scnprintf(buf, PAGE_SIZE, "0x%llx\n",
++			 (unsigned long long)dfl_get_bitstream_id(dev));
+ }
+ static DEVICE_ATTR_RO(bitstream_id);
+ 
+diff --git a/drivers/fpga/dfl.c b/drivers/fpga/dfl.c
+index df0ebd2ed0da..e7855b721fd0 100644
+--- org/drivers/fpga/dfl.c
++++ new/drivers/fpga/dfl.c
+@@ -537,6 +537,27 @@ void dfl_driver_unregister(struct dfl_driver *dfl_drv)
+ }
+ EXPORT_SYMBOL(dfl_driver_unregister);
+ 
++int dfl_dev_get_vendor_net_cfg(struct dfl_device *dfl_dev)
++{
++	struct device *fme_dev;
++	u64 v;
++
++	if (!dfl_dev)
++		return -EINVAL;
++
++	if (dfl_dev->type == FME_ID)
++		fme_dev = dfl_dev->dev.parent;
++	else
++		fme_dev = dfl_dev->cdev->fme_dev;
++
++	if (!fme_dev)
++		return -EINVAL;
++
++	v = dfl_get_bitstream_id(fme_dev);
++	return (int)FIELD_GET(FME_BID_VENDOR_NET_CFG, v);
++}
++EXPORT_SYMBOL_GPL(dfl_dev_get_vendor_net_cfg);
++
+ #define is_header_feature(feature) ((feature)->id == FEATURE_ID_FIU_HEADER)
+ 
+ /**
+diff --git a/drivers/fpga/dfl.h b/drivers/fpga/dfl.h
+index 2b82c96ba56c..6c7a69612bff 100644
+--- org/drivers/fpga/dfl.h
++++ new/drivers/fpga/dfl.h
+@@ -104,6 +104,9 @@
+ #define FME_CAP_CACHE_SIZE	GENMASK_ULL(43, 32)	/* cache size in KB */
+ #define FME_CAP_CACHE_ASSOC	GENMASK_ULL(47, 44)	/* Associativity */
+ 
++/* FME BITSTREAM_ID Register Bitfield */
++#define FME_BID_VENDOR_NET_CFG	GENMASK_ULL(35, 32)     /* vendor net cfg */
++
+ /* FME Port Offset Register Bitfield */
+ /* Offset to port device feature header */
+ #define FME_PORT_OFST_DFH_OFST	GENMASK_ULL(23, 0)
+@@ -397,6 +400,15 @@ static inline bool is_dfl_feature_present(struct device *dev, u16 id)
+ 	return !!dfl_get_feature_ioaddr_by_id(dev, id);
+ }
+ 
++static inline u64 dfl_get_bitstream_id(struct device *dev)
++{
++	void __iomem *base;
++
++	base = dfl_get_feature_ioaddr_by_id(dev, FME_FEATURE_ID_HEADER);
++
++	return readq(base + FME_HDR_BITSTREAM_ID);
++}
++
+ static inline
+ struct device *dfl_fpga_pdata_to_parent(struct dfl_feature_platform_data *pdata)
+ {
+diff --git a/include/linux/dfl.h b/include/linux/dfl.h
+index e1b2471f0f86..5ee2b1e87081 100644
+--- org/include/linux/dfl.h
++++ new/include/linux/dfl.h
+@@ -67,6 +67,8 @@ struct dfl_driver {
+ #define to_dfl_dev(d) container_of(d, struct dfl_device, dev)
+ #define to_dfl_drv(d) container_of(d, struct dfl_driver, drv)
+ 
++int dfl_dev_get_vendor_net_cfg(struct dfl_device *dfl_dev);
++
+ /*
+  * use a macro to avoid include chaining to get THIS_MODULE.
+  */
+-- 
+2.34.1
+

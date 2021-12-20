@@ -1,0 +1,71 @@
+From 9cfa8a940efc9c85e563d40fe20c1cf70d75ee1d Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Wed, 28 Oct 2020 15:50:42 -0700
+Subject: [PATCH 24/39] fpga: sec-mgr: expose sec-mgr update size
+
+Extend the FPGA Security Manager class driver to include
+an update/remaining_size sysfs node that can be read to
+determine how much data remains to be transferred to the
+secure update engine. This file can be used to monitor
+progress during the "writing" phase of an update.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+Reviewed-by: Tom Rix <trix@redhat.com>
+---
+ Documentation/ABI/testing/sysfs-class-fpga-sec-mgr | 11 +++++++++++
+ drivers/fpga/fpga-sec-mgr.c                        | 10 ++++++++++
+ 2 files changed, 21 insertions(+)
+
+diff --git a/Documentation/ABI/testing/sysfs-class-fpga-sec-mgr b/Documentation/ABI/testing/sysfs-class-fpga-sec-mgr
+index 560513653c70..61432a3a06a2 100644
+--- org/Documentation/ABI/testing/sysfs-class-fpga-sec-mgr
++++ new/Documentation/ABI/testing/sysfs-class-fpga-sec-mgr
+@@ -90,6 +90,17 @@ Description:	Read-only. Returns a string describing the current
+ 		as it will be signaled by sysfs_notify() on each
+ 		state change.
+ 
++What: 		/sys/class/fpga_sec_mgr/fpga_secX/update/remaining_size
++Date:		Oct 2020
++KernelVersion:  5.11
++Contact:	Russ Weight <russell.h.weight@intel.com>
++Description:	Read-only. Returns the size of data that remains to
++		be written to the secure update engine. The size
++		value is initialized to the full size of the file
++		image and the value is updated periodically during
++		the "writing" phase of the update.
++		Format: "%u".
++
+ What: 		/sys/class/fpga_sec_mgr/fpga_secX/update/error
+ Date:		Oct 2020
+ KernelVersion:  5.11
+diff --git a/drivers/fpga/fpga-sec-mgr.c b/drivers/fpga/fpga-sec-mgr.c
+index 54f3713ba64c..f380c4385929 100644
+--- org/drivers/fpga/fpga-sec-mgr.c
++++ new/drivers/fpga/fpga-sec-mgr.c
+@@ -352,6 +352,15 @@ error_show(struct device *dev, struct device_attribute *attr, char *buf)
+ }
+ static DEVICE_ATTR_RO(error);
+ 
++static ssize_t remaining_size_show(struct device *dev,
++				   struct device_attribute *attr, char *buf)
++{
++	struct fpga_sec_mgr *smgr = to_sec_mgr(dev);
++
++	return sysfs_emit(buf, "%u\n", smgr->remaining_size);
++}
++static DEVICE_ATTR_RO(remaining_size);
++
+ static ssize_t filename_store(struct device *dev, struct device_attribute *attr,
+ 			      const char *buf, size_t count)
+ {
+@@ -388,6 +397,7 @@ static struct attribute *sec_mgr_update_attrs[] = {
+ 	&dev_attr_filename.attr,
+ 	&dev_attr_status.attr,
+ 	&dev_attr_error.attr,
++	&dev_attr_remaining_size.attr,
+ 	NULL,
+ };
+ 
+-- 
+2.34.1
+

@@ -1,0 +1,123 @@
+From 24d4277b16e768f12909206c6e042ae582a2c1a3 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Wed, 2 Sep 2020 14:16:13 -0700
+Subject: [PATCH 19/39] fpga: dfl: afu: harden port enable logic
+
+It is recommended that the driver poll for ACK == 0 after
+enabling the port. This change adds the recommended poll.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+---
+ drivers/fpga/dfl-afu-error.c |  2 +-
+ drivers/fpga/dfl-afu-main.c  | 29 +++++++++++++++++++++--------
+ drivers/fpga/dfl-afu.h       |  2 +-
+ 3 files changed, 23 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/fpga/dfl-afu-error.c b/drivers/fpga/dfl-afu-error.c
+index c4691187cca9..0806532a3e9f 100644
+--- org/drivers/fpga/dfl-afu-error.c
++++ new/drivers/fpga/dfl-afu-error.c
+@@ -103,7 +103,7 @@ static int afu_port_err_clear(struct device *dev, u64 err)
+ 	__afu_port_err_mask(dev, false);
+ 
+ 	/* Enable the Port by clear the reset */
+-	__afu_port_enable(pdev);
++	ret = __afu_port_enable(pdev);
+ 
+ done:
+ 	mutex_unlock(&pdata->lock);
+diff --git a/drivers/fpga/dfl-afu-main.c b/drivers/fpga/dfl-afu-main.c
+index 64fff9d6cf2e..b56d6a0ce7bd 100644
+--- org/drivers/fpga/dfl-afu-main.c
++++ new/drivers/fpga/dfl-afu-main.c
+@@ -21,6 +21,9 @@
+ 
+ #include "dfl-afu.h"
+ 
++#define RST_POLL_INVL 10 /* us */
++#define RST_POLL_TIMEOUT 1000 /* us */
++
+ /**
+  * __afu_port_enable - enable a port by clear reset
+  * @pdev: port platform device.
+@@ -32,7 +35,7 @@
+  *
+  * The caller needs to hold lock for protection.
+  */
+-void __afu_port_enable(struct platform_device *pdev)
++int __afu_port_enable(struct platform_device *pdev)
+ {
+ 	struct dfl_feature_platform_data *pdata = dev_get_platdata(&pdev->dev);
+ 	void __iomem *base;
+@@ -41,7 +44,7 @@ void __afu_port_enable(struct platform_device *pdev)
+ 	WARN_ON(!pdata->disable_count);
+ 
+ 	if (--pdata->disable_count != 0)
+-		return;
++		return 0;
+ 
+ 	base = dfl_get_feature_ioaddr_by_id(&pdev->dev, PORT_FEATURE_ID_HEADER);
+ 
+@@ -49,10 +52,20 @@ void __afu_port_enable(struct platform_device *pdev)
+ 	v = readq(base + PORT_HDR_CTRL);
+ 	v &= ~PORT_CTRL_SFTRST;
+ 	writeq(v, base + PORT_HDR_CTRL);
+-}
+ 
+-#define RST_POLL_INVL 10 /* us */
+-#define RST_POLL_TIMEOUT 1000 /* us */
++	/*
++	 * HW clears the ack bit to indicate that the port is fully out
++	 * of reset.
++	 */
++	if (readq_poll_timeout(base + PORT_HDR_CTRL, v,
++			       !(v & PORT_CTRL_SFTRST_ACK),
++			       RST_POLL_INVL, RST_POLL_TIMEOUT)) {
++		dev_err(&pdev->dev, "timeout, failure to enable device\n");
++		return -ETIMEDOUT;
++	}
++
++	return 0;
++}
+ 
+ /**
+  * __afu_port_disable - disable a port by hold reset
+@@ -111,7 +124,7 @@ static int __port_reset(struct platform_device *pdev)
+ 
+ 	ret = __afu_port_disable(pdev);
+ 	if (!ret)
+-		__afu_port_enable(pdev);
++		ret = __afu_port_enable(pdev);
+ 
+ 	return ret;
+ }
+@@ -874,11 +887,11 @@ static int afu_dev_destroy(struct platform_device *pdev)
+ static int port_enable_set(struct platform_device *pdev, bool enable)
+ {
+ 	struct dfl_feature_platform_data *pdata = dev_get_platdata(&pdev->dev);
+-	int ret = 0;
++	int ret;
+ 
+ 	mutex_lock(&pdata->lock);
+ 	if (enable)
+-		__afu_port_enable(pdev);
++		ret = __afu_port_enable(pdev);
+ 	else
+ 		ret = __afu_port_disable(pdev);
+ 	mutex_unlock(&pdata->lock);
+diff --git a/drivers/fpga/dfl-afu.h b/drivers/fpga/dfl-afu.h
+index 22d46e284cfc..7c297834be05 100644
+--- org/drivers/fpga/dfl-afu.h
++++ new/drivers/fpga/dfl-afu.h
+@@ -83,7 +83,7 @@ struct dfl_afu {
+ };
+ 
+ /* hold pdata->lock when call __afu_port_enable/disable */
+-void __afu_port_enable(struct platform_device *pdev);
++int __afu_port_enable(struct platform_device *pdev);
+ int __afu_port_disable(struct platform_device *pdev);
+ 
+ void afu_mmio_region_init(struct dfl_feature_platform_data *pdata);
+-- 
+2.34.1
+

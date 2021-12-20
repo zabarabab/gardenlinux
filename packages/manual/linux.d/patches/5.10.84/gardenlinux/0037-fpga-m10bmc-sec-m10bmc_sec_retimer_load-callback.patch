@@ -1,0 +1,243 @@
+From 209ee1d9742b541a180837c6244f6310c413d4f4 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Wed, 28 Oct 2020 15:50:55 -0700
+Subject: [PATCH 37/39] fpga: m10bmc-sec: m10bmc_sec_retimer_load callback
+
+Create m10bmc_sec_retimer_load() callback function
+to provide a trigger for new retimer firmware.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+---
+ drivers/fpga/intel-m10-bmc-secure.c | 159 ++++++++++++++++++++++++++++
+ include/linux/mfd/intel-m10-bmc.h   |  31 ++++++
+ 2 files changed, 190 insertions(+)
+
+diff --git a/drivers/fpga/intel-m10-bmc-secure.c b/drivers/fpga/intel-m10-bmc-secure.c
+index 48bc462c10ca..a35437d4db42 100644
+--- org/drivers/fpga/intel-m10-bmc-secure.c
++++ new/drivers/fpga/intel-m10-bmc-secure.c
+@@ -584,6 +584,161 @@ static int m10bmc_sec_bmc_image_load_1(struct fpga_sec_mgr *smgr)
+ 	return m10bmc_sec_bmc_image_load(smgr, 1);
+ }
+ 
++static int retimer_check_idle(struct m10bmc_sec *sec)
++{
++	u32 doorbell;
++	int ret;
++
++	ret = m10bmc_sys_read(sec->m10bmc, M10BMC_DOORBELL, &doorbell);
++	if (ret)
++		return -EIO;
++
++	if (rsu_prog(doorbell) != RSU_PROG_IDLE &&
++	    rsu_prog(doorbell) != RSU_PROG_RSU_DONE &&
++	    rsu_prog(doorbell) != RSU_PROG_PKVL_PROM_DONE) {
++		log_error_regs(sec, doorbell);
++		return -EBUSY;
++	}
++
++	return 0;
++}
++
++static int trigger_retimer_eeprom_load(struct m10bmc_sec *sec)
++{
++	struct intel_m10bmc *m10bmc = sec->m10bmc;
++	unsigned int val;
++	int ret;
++
++	ret = m10bmc_sys_update_bits(m10bmc, M10BMC_DOORBELL,
++				     DRBL_PKVL_EEPROM_LOAD_SEC,
++				     DRBL_PKVL_EEPROM_LOAD_SEC);
++	if (ret)
++		return ret;
++
++	/*
++	 * If the current NIOS FW supports this retimer update feature, then
++	 * it will clear the same PKVL_EEPROM_LOAD bit in 2 seconds. Otherwise
++	 * the driver needs to clear the PKVL_EEPROM_LOAD bit manually and
++	 * return an error code.
++	 */
++	ret = regmap_read_poll_timeout(m10bmc->regmap,
++				       M10BMC_SYS_BASE + M10BMC_DOORBELL,
++				       val,
++				       (!(val & DRBL_PKVL_EEPROM_LOAD_SEC)),
++				       PKVL_EEPROM_LOAD_INTERVAL_US,
++				       PKVL_EEPROM_LOAD_TIMEOUT_US);
++	if (ret == -ETIMEDOUT) {
++		dev_err(sec->dev, "%s PKVL_EEPROM_LOAD clear timedout\n",
++			__func__);
++		m10bmc_sys_update_bits(m10bmc, M10BMC_DOORBELL,
++				       DRBL_PKVL_EEPROM_LOAD_SEC, 0);
++		ret = -ENODEV;
++	} else if (ret) {
++		dev_err(sec->dev, "%s poll EEPROM_LOAD error %d\n",
++			__func__, ret);
++	}
++
++	return ret;
++}
++
++static int poll_retimer_eeprom_load_done(struct m10bmc_sec *sec)
++{
++	struct intel_m10bmc *m10bmc = sec->m10bmc;
++	unsigned int doorbell;
++	int ret;
++
++	/*
++	 * RSU_STAT_PKVL_REJECT indicates that the current image is
++	 * already programmed. RSU_PROG_PKVL_PROM_DONE that the firmware
++	 * update process has finished, but does not necessarily indicate
++	 * a successful update.
++	 */
++	ret = regmap_read_poll_timeout(m10bmc->regmap,
++				       M10BMC_SYS_BASE + M10BMC_DOORBELL,
++				       doorbell,
++				       ((rsu_prog(doorbell) ==
++					 RSU_PROG_PKVL_PROM_DONE) ||
++					(rsu_stat(doorbell) ==
++					 RSU_STAT_PKVL_REJECT)),
++				       PKVL_PRELOAD_INTERVAL_US,
++				       PKVL_PRELOAD_TIMEOUT_US);
++	if (ret) {
++		if (ret == -ETIMEDOUT)
++			dev_err(sec->dev,
++				"%s Doorbell check timedout: 0x%08x\n",
++				__func__, doorbell);
++		else
++			dev_err(sec->dev, "%s poll Doorbell error\n",
++				__func__);
++		return ret;
++	}
++
++	if (rsu_stat(doorbell) == RSU_STAT_PKVL_REJECT) {
++		dev_err(sec->dev, "%s duplicate image rejected\n", __func__);
++		return -ECANCELED;
++	}
++
++	return 0;
++}
++
++static int poll_retimer_preload_done(struct m10bmc_sec *sec)
++{
++	struct intel_m10bmc *m10bmc = sec->m10bmc;
++	unsigned int val;
++	int ret;
++
++	/*
++	 * Wait for the updated firmware to be loaded by the PKVL device
++	 * and confirm that the updated firmware is operational
++	 */
++	ret = regmap_read_poll_timeout(m10bmc->regmap,
++				       M10BMC_SYS_BASE + PKVL_POLLING_CTRL, val,
++				       ((val & PKVL_PRELOAD) == PKVL_PRELOAD),
++				       PKVL_PRELOAD_INTERVAL_US,
++				       PKVL_PRELOAD_TIMEOUT_US);
++	if (ret) {
++		dev_err(sec->dev, "%s poll PKVL_PRELOAD error %d\n",
++			__func__, ret);
++		return ret;
++	}
++
++	if ((val & PKVL_UPG_STATUS_MASK) != PKVL_UPG_STATUS_GOOD) {
++		dev_err(sec->dev, "%s error detected during upgrade\n",
++			__func__);
++		return -EIO;
++	}
++
++	return 0;
++}
++
++static int m10bmc_sec_retimer_eeprom_load(struct fpga_sec_mgr *smgr)
++{
++	struct m10bmc_sec *sec = smgr->priv;
++	int ret;
++
++	ret = m10bmc_fw_state_enter(sec->m10bmc, M10BMC_FW_STATE_SEC_UPDATE);
++	if (ret)
++		return -EBUSY;
++
++	ret = retimer_check_idle(sec);
++	if (ret)
++		goto fw_state_exit;
++
++	ret = trigger_retimer_eeprom_load(sec);
++	if (ret)
++		goto fw_state_exit;
++
++	ret = poll_retimer_eeprom_load_done(sec);
++	if (ret)
++		goto fw_state_exit;
++
++	ret = poll_retimer_preload_done(sec);
++
++fw_state_exit:
++	m10bmc_fw_state_exit(sec->m10bmc);
++	return ret;
++}
++
+ static struct image_load n3000_image_load_hndlrs[] = {
+ 	{
+ 		.name = "bmc_user",
+@@ -593,6 +748,10 @@ static struct image_load n3000_image_load_hndlrs[] = {
+ 		.name = "bmc_factory",
+ 		.load_image = m10bmc_sec_bmc_image_load_1,
+ 	},
++	{
++		.name = "retimer_fw",
++		.load_image = m10bmc_sec_retimer_eeprom_load,
++	},
+ 	{}
+ };
+ 
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index 33d4b66281cb..827117416598 100644
+--- org/include/linux/mfd/intel-m10-bmc.h
++++ new/include/linux/mfd/intel-m10-bmc.h
+@@ -26,12 +26,43 @@
+ #define M10BMC_VER_LEGACY_INVALID	0xffffffff
+ 
+ /* PKVL related registers, in system register region */
++#define PKVL_POLLING_CTRL		0x80
++#define POLLING_MODE			GENMASK(15, 0)
++#define PKVL_A_PRELOAD			BIT(16)
++#define PKVL_A_PRELOAD_TIMEOUT		BIT(17)
++#define PKVL_A_DATA_TOO_BIG		BIT(18)
++#define PKVL_A_HDR_CHECKSUM		BIT(20)
++#define PKVL_B_PRELOAD			BIT(24)
++#define PKVL_B_PRELOAD_TIMEOUT		BIT(25)
++#define PKVL_B_DATA_TOO_BIG		BIT(26)
++#define PKVL_B_HDR_CHECKSUM		BIT(28)
++#define PKVL_EEPROM_UPG_STATUS		GENMASK(31, 16)
+ #define PKVL_LINK_STATUS		0x164
+ #define PKVL_A_VERSION			0x254
+ #define PKVL_B_VERSION			0x258
+ #define SERDES_VERSION			GENMASK(15, 0)
+ #define SBUS_VERSION			GENMASK(31, 16)
+ 
++#define PKVL_PRELOAD			(PKVL_A_PRELOAD | PKVL_B_PRELOAD)
++#define PKVL_PRELOAD_TIMEOUT		(PKVL_A_PRELOAD_TIMEOUT | \
++					 PKVL_B_PRELOAD_TIMEOUT)
++#define PKVL_DATA_TOO_BIG		(PKVL_A_DATA_TOO_BIG | \
++					 PKVL_B_DATA_TOO_BIG)
++#define PKVL_HDR_CHECKSUM		(PKVL_A_HDR_CHECKSUM | \
++					 PKVL_B_HDR_CHECKSUM)
++
++#define PKVL_UPG_STATUS_MASK		(PKVL_PRELOAD | PKVL_PRELOAD_TIMEOUT |\
++					 PKVL_DATA_TOO_BIG | PKVL_HDR_CHECKSUM)
++#define PKVL_UPG_STATUS_GOOD		(PKVL_PRELOAD | PKVL_HDR_CHECKSUM)
++
++/* interval 100ms and timeout 2s */
++#define PKVL_EEPROM_LOAD_INTERVAL_US	(100 * 1000)
++#define PKVL_EEPROM_LOAD_TIMEOUT_US	(2 * 1000 * 1000)
++
++/* interval 100ms and timeout 30s */
++#define PKVL_PRELOAD_INTERVAL_US	(100 * 1000)
++#define PKVL_PRELOAD_TIMEOUT_US		(30 * 1000 * 1000)
++
+ /* Telemetry registers */
+ #define M10BMC_TELEM_START		0x100
+ #define M10BMC_TELEM_END		0x33c
+-- 
+2.34.1
+

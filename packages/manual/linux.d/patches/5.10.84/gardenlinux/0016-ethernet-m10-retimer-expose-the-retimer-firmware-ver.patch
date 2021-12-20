@@ -1,0 +1,132 @@
+From 68ef6ca286083e217ac9242a907605eabfc7766e Mon Sep 17 00:00:00 2001
+From: Xu Yilun <yilun.xu@intel.com>
+Date: Wed, 10 Jun 2020 15:53:36 +0800
+Subject: [PATCH 16/39] ethernet: m10-retimer: expose the retimer firmware
+ version information
+
+This patch creates two sysfs interfaces for each retimer chip (retimer A &
+retimer B). They expose the firmware version information to userspace.
+
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+----
+v3: no change.
+---
+ .../sysfs-driver-intel-m10-bmc-retimer        | 31 +++++++++++++++++
+ .../ethernet/intel/intel-m10-bmc-retimer.c    | 33 +++++++++++++++++++
+ include/linux/mfd/intel-m10-bmc.h             |  4 +++
+ 3 files changed, 68 insertions(+)
+ create mode 100644 Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-retimer
+
+diff --git a/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-retimer b/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-retimer
+new file mode 100644
+index 000000000000..a84db188233e
+--- /dev/null
++++ new/Documentation/ABI/testing/sysfs-driver-intel-m10-bmc-retimer
+@@ -0,0 +1,31 @@
++What:		/sys/bus/platform/devices/n3000bmc-retimer.*.auto/A_sbus_version
++Date:		Sep 2020
++KernelVersion:	5.10
++Contact:	Xu Yilun <yilun.xu@intel.com>
++Description:	Read only. Returns the Transceiver bus firmware version of
++		retimer chip A.
++		Format: "0x%04x".
++
++What:		/sys/bus/platform/devices/n3000bmc-retimer.*.auto/A_serdes_version
++Date:		Sep 2020
++KernelVersion:	5.10
++Contact:	Xu Yilun <yilun.xu@intel.com>
++Description:	Read only. Returns the SERDES firmware version of retimer
++		chip A.
++		Format: "0x%04x".
++
++What:		/sys/bus/platform/devices/n3000bmc-retimer.*.auto/B_sbus_version
++Date:		Sep 2020
++KernelVersion:  5.10
++Contact:	Xu Yilun <yilun.xu@intel.com>
++Description:	Read only. Returns the Transceiver bus firmware version of
++		retimer chip B.
++		Format: "0x%04x".
++
++What:		/sys/bus/platform/devices/n3000bmc-retimer.*.auto/B_serdes_version
++Date:		Sep 2020
++KernelVersion:  5.10
++Contact:	Xu Yilun <yilun.xu@intel.com>
++Description:	Read only. Returns the SERDES firmware version of retimer
++		chip B.
++		Format: "0x%04x".
+diff --git a/drivers/net/ethernet/intel/intel-m10-bmc-retimer.c b/drivers/net/ethernet/intel/intel-m10-bmc-retimer.c
+index 3f686d23f44a..d20776a96600 100644
+--- org/drivers/net/ethernet/intel/intel-m10-bmc-retimer.c
++++ new/drivers/net/ethernet/intel/intel-m10-bmc-retimer.c
+@@ -4,6 +4,7 @@
+  * Copyright (C) 2018-2020 Intel Corporation. All rights reserved.
+  *
+  */
++#include <linux/bitfield.h>
+ #include <linux/device.h>
+ #include <linux/mfd/intel-m10-bmc.h>
+ #include <linux/module.h>
+@@ -28,6 +29,37 @@ struct m10bmc_retimer {
+ 	struct mii_bus *retimer_mii_bus;
+ };
+ 
++#define retimer_version_attr(chip, type, reg, field)			\
++static ssize_t								\
++chip##_##type##_version_show(struct device *dev,				\
++			     struct device_attribute *attr, char *buf)	\
++{									\
++	struct m10bmc_retimer *retimer = dev_get_drvdata(dev);		\
++	unsigned int val;						\
++	int ret;							\
++									\
++	ret = m10bmc_sys_read(retimer->m10bmc, reg, &val);		\
++	if (ret)							\
++		return ret;						\
++									\
++	return sprintf(buf, "0x%04x\n", (u16)FIELD_GET(field, val));	\
++}									\
++static DEVICE_ATTR_RO(chip##_##type##_version)
++
++retimer_version_attr(A, sbus, PKVL_A_VERSION, SBUS_VERSION);
++retimer_version_attr(A, serdes, PKVL_A_VERSION, SERDES_VERSION);
++retimer_version_attr(B, sbus, PKVL_B_VERSION, SBUS_VERSION);
++retimer_version_attr(B, serdes, PKVL_B_VERSION, SERDES_VERSION);
++
++static struct attribute *m10bmc_retimer_attrs[] = {
++	&dev_attr_A_sbus_version.attr,
++	&dev_attr_A_serdes_version.attr,
++	&dev_attr_B_sbus_version.attr,
++	&dev_attr_B_serdes_version.attr,
++	NULL,
++};
++ATTRIBUTE_GROUPS(m10bmc_retimer);
++
+ #define RETIMER_LINK_STAT_BIT(retimer_id, link_id) \
+ 	BIT(((retimer_id) << 2) + (link_id))
+ 
+@@ -203,6 +235,7 @@ static struct platform_driver intel_m10bmc_retimer_driver = {
+ 	.remove = intel_m10bmc_retimer_remove,
+ 	.driver = {
+ 		.name = N3000BMC_RETIMER_DEV_NAME,
++		.dev_groups = m10bmc_retimer_groups,
+ 	},
+ };
+ 
+diff --git a/include/linux/mfd/intel-m10-bmc.h b/include/linux/mfd/intel-m10-bmc.h
+index 3d9d22c94ae2..f9a56e17d3d6 100644
+--- org/include/linux/mfd/intel-m10-bmc.h
++++ new/include/linux/mfd/intel-m10-bmc.h
+@@ -23,6 +23,10 @@
+ 
+ /* PKVL related registers, in system register region */
+ #define PKVL_LINK_STATUS		0x164
++#define PKVL_A_VERSION			0x254
++#define PKVL_B_VERSION			0x258
++#define SERDES_VERSION			GENMASK(15, 0)
++#define SBUS_VERSION			GENMASK(31, 16)
+ 
+ /**
+  * struct intel_m10bmc_retimer_pdata - subdev retimer platform data
+-- 
+2.34.1
+

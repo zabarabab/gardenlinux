@@ -1,0 +1,230 @@
+From d2b65a5e883bb44ba80cb8dc0f20fa4159649c21 Mon Sep 17 00:00:00 2001
+From: Michael Adler <Michael.Adler@intel.com>
+Date: Thu, 7 May 2020 19:30:56 +0800
+Subject: [PATCH 17/39] fpga: dfl: afu: add read-only/write-only dma mapping
+ support
+
+This patch adds support for Read-only and Write-only DMA mapping
+through existing DMA_MAP/UNMAP ioctl interface, it introduces
+two new flags DFL_DMA_MAP_FLAG_READ (mem to dev) and
+DFL_DMA_MAP_FLAG_WRITE (dev to mem).
+
+Signed-off-by: Michael Adler <Michael.Adler@intel.com>
+Signed-off-by: Wu Hao <hao.wu@intel.com>
+---
+ drivers/fpga/dfl-afu-dma-region.c | 37 ++++++++++++++++++++++++++-----
+ drivers/fpga/dfl-afu-main.c       |  6 +++--
+ drivers/fpga/dfl-afu.h            |  7 ++++--
+ include/uapi/linux/fpga-dfl.h     | 10 ++++++++-
+ 4 files changed, 49 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/fpga/dfl-afu-dma-region.c b/drivers/fpga/dfl-afu-dma-region.c
+index 02b60fde0430..faeb65107eff 100644
+--- org/drivers/fpga/dfl-afu-dma-region.c
++++ new/drivers/fpga/dfl-afu-dma-region.c
+@@ -9,7 +9,7 @@
+  *   Xiao Guangrong <guangrong.xiao@linux.intel.com>
+  */
+ 
+-#include <linux/dma-mapping.h>
++#include <linux/fpga-dfl.h>
+ #include <linux/sched/signal.h>
+ #include <linux/uaccess.h>
+ #include <linux/mm.h>
+@@ -36,6 +36,7 @@ static int afu_dma_pin_pages(struct dfl_feature_platform_data *pdata,
+ {
+ 	int npages = region->length >> PAGE_SHIFT;
+ 	struct device *dev = &pdata->dev->dev;
++	unsigned int flags = 0;
+ 	int ret, pinned;
+ 
+ 	ret = account_locked_vm(current->mm, npages, true);
+@@ -48,7 +49,10 @@ static int afu_dma_pin_pages(struct dfl_feature_platform_data *pdata,
+ 		goto unlock_vm;
+ 	}
+ 
+-	pinned = pin_user_pages_fast(region->user_addr, npages, FOLL_WRITE,
++	if (region->direction != DMA_TO_DEVICE)
++		flags |= FOLL_WRITE;
++
++	pinned = pin_user_pages_fast(region->user_addr, npages, flags,
+ 				     region->pages);
+ 	if (pinned < 0) {
+ 		ret = pinned;
+@@ -287,11 +291,31 @@ afu_dma_region_find_iova(struct dfl_feature_platform_data *pdata, u64 iova)
+ 	return afu_dma_region_find(pdata, iova, 0);
+ }
+ 
++static enum dma_data_direction dma_flag_to_dir(u32 flags)
++{
++	u32 mask = DFL_DMA_MAP_FLAG_READ | DFL_DMA_MAP_FLAG_WRITE;
++
++	/*
++	 * DMA is bidirectional if both read and write are specified or if
++	 * neither read nor write is specified. The latter supports legacy
++	 * code, which did not pass any flags.
++	 */
++	switch (flags & mask) {
++	case DFL_DMA_MAP_FLAG_READ:
++		return DMA_TO_DEVICE;
++	case DFL_DMA_MAP_FLAG_WRITE:
++		return DMA_FROM_DEVICE;
++	}
++
++	return DMA_BIDIRECTIONAL;
++}
++
+ /**
+  * afu_dma_map_region - map memory region for dma
+  * @pdata: feature device platform data
+  * @user_addr: address of the memory region
+  * @length: size of the memory region
++ * @flags: dma mapping flags
+  * @iova: pointer of iova address
+  *
+  * Map memory region defined by @user_addr and @length, and return dma address
+@@ -299,7 +323,7 @@ afu_dma_region_find_iova(struct dfl_feature_platform_data *pdata, u64 iova)
+  * Return 0 for success, otherwise error code.
+  */
+ int afu_dma_map_region(struct dfl_feature_platform_data *pdata,
+-		       u64 user_addr, u64 length, u64 *iova)
++		       u64 user_addr, u64 length, u32 flags, u64 *iova)
+ {
+ 	struct dfl_afu_dma_region *region;
+ 	int ret;
+@@ -321,6 +345,7 @@ int afu_dma_map_region(struct dfl_feature_platform_data *pdata,
+ 
+ 	region->user_addr = user_addr;
+ 	region->length = length;
++	region->direction = dma_flag_to_dir(flags);
+ 
+ 	/* Pin the user memory region */
+ 	ret = afu_dma_pin_pages(pdata, region);
+@@ -340,7 +365,7 @@ int afu_dma_map_region(struct dfl_feature_platform_data *pdata,
+ 	region->iova = dma_map_page(dfl_fpga_pdata_to_parent(pdata),
+ 				    region->pages[0], 0,
+ 				    region->length,
+-				    DMA_BIDIRECTIONAL);
++				    region->direction);
+ 	if (dma_mapping_error(dfl_fpga_pdata_to_parent(pdata), region->iova)) {
+ 		dev_err(&pdata->dev->dev, "failed to map for dma\n");
+ 		ret = -EFAULT;
+@@ -361,7 +386,7 @@ int afu_dma_map_region(struct dfl_feature_platform_data *pdata,
+ 
+ unmap_dma:
+ 	dma_unmap_page(dfl_fpga_pdata_to_parent(pdata),
+-		       region->iova, region->length, DMA_BIDIRECTIONAL);
++		       region->iova, region->length, region->direction);
+ unpin_pages:
+ 	afu_dma_unpin_pages(pdata, region);
+ free_region:
+@@ -397,7 +422,7 @@ int afu_dma_unmap_region(struct dfl_feature_platform_data *pdata, u64 iova)
+ 	mutex_unlock(&pdata->lock);
+ 
+ 	dma_unmap_page(dfl_fpga_pdata_to_parent(pdata),
+-		       region->iova, region->length, DMA_BIDIRECTIONAL);
++		       region->iova, region->length, region->direction);
+ 	afu_dma_unpin_pages(pdata, region);
+ 	kfree(region);
+ 
+diff --git a/drivers/fpga/dfl-afu-main.c b/drivers/fpga/dfl-afu-main.c
+index 753cda4b2568..64fff9d6cf2e 100644
+--- org/drivers/fpga/dfl-afu-main.c
++++ new/drivers/fpga/dfl-afu-main.c
+@@ -695,6 +695,7 @@ static long afu_ioctl_get_region_info(struct dfl_feature_platform_data *pdata,
+ static long
+ afu_ioctl_dma_map(struct dfl_feature_platform_data *pdata, void __user *arg)
+ {
++	u32 dma_mask = DFL_DMA_MAP_FLAG_READ | DFL_DMA_MAP_FLAG_WRITE;
+ 	struct dfl_fpga_port_dma_map map;
+ 	unsigned long minsz;
+ 	long ret;
+@@ -704,10 +705,11 @@ afu_ioctl_dma_map(struct dfl_feature_platform_data *pdata, void __user *arg)
+ 	if (copy_from_user(&map, arg, minsz))
+ 		return -EFAULT;
+ 
+-	if (map.argsz < minsz || map.flags)
++	if (map.argsz < minsz || map.flags & ~dma_mask)
+ 		return -EINVAL;
+ 
+-	ret = afu_dma_map_region(pdata, map.user_addr, map.length, &map.iova);
++	ret = afu_dma_map_region(pdata, map.user_addr, map.length, map.flags,
++				 &map.iova);
+ 	if (ret)
+ 		return ret;
+ 
+diff --git a/drivers/fpga/dfl-afu.h b/drivers/fpga/dfl-afu.h
+index 576e94960086..22d46e284cfc 100644
+--- org/drivers/fpga/dfl-afu.h
++++ new/drivers/fpga/dfl-afu.h
+@@ -17,6 +17,7 @@
+ #ifndef __DFL_AFU_H
+ #define __DFL_AFU_H
+ 
++#include <linux/dma-mapping.h>
+ #include <linux/mm.h>
+ 
+ #include "dfl.h"
+@@ -41,7 +42,7 @@ struct dfl_afu_mmio_region {
+ };
+ 
+ /**
+- * struct fpga_afu_dma_region - afu DMA region data structure
++ * struct dfl_afu_dma_region - afu DMA region data structure
+  *
+  * @user_addr: region userspace virtual address.
+  * @length: region length.
+@@ -49,6 +50,7 @@ struct dfl_afu_mmio_region {
+  * @pages: ptr to pages of this region.
+  * @node: rb tree node.
+  * @in_use: flag to indicate if this region is in_use.
++ * @direction: dma data direction.
+  */
+ struct dfl_afu_dma_region {
+ 	u64 user_addr;
+@@ -57,6 +59,7 @@ struct dfl_afu_dma_region {
+ 	struct page **pages;
+ 	struct rb_node node;
+ 	bool in_use;
++	enum dma_data_direction direction;
+ };
+ 
+ /**
+@@ -96,7 +99,7 @@ int afu_mmio_region_get_by_offset(struct dfl_feature_platform_data *pdata,
+ void afu_dma_region_init(struct dfl_feature_platform_data *pdata);
+ void afu_dma_region_destroy(struct dfl_feature_platform_data *pdata);
+ int afu_dma_map_region(struct dfl_feature_platform_data *pdata,
+-		       u64 user_addr, u64 length, u64 *iova);
++		       u64 user_addr, u64 length, u32 flags, u64 *iova);
+ int afu_dma_unmap_region(struct dfl_feature_platform_data *pdata, u64 iova);
+ struct dfl_afu_dma_region *
+ afu_dma_region_find(struct dfl_feature_platform_data *pdata,
+diff --git a/include/uapi/linux/fpga-dfl.h b/include/uapi/linux/fpga-dfl.h
+index 1621b077bf21..72d68e205eb9 100644
+--- org/include/uapi/linux/fpga-dfl.h
++++ new/include/uapi/linux/fpga-dfl.h
+@@ -121,12 +121,20 @@ struct dfl_fpga_port_region_info {
+  * Map the dma memory per user_addr and length which are provided by caller.
+  * Driver fills the iova in provided struct afu_port_dma_map.
+  * This interface only accepts page-size aligned user memory for dma mapping.
++ *
++ * Setting only one of DFL_DMA_MAP_FLAG_READ or WRITE limits FPGA-initiated
++ * DMA requests to only reads or only writes. To be back-compatiable with
++ * legacy driver, setting neither flag is equivalent to setting both flags:
++ * both read and write are requests permitted.
++ *
+  * Return: 0 on success, -errno on failure.
+  */
+ struct dfl_fpga_port_dma_map {
+ 	/* Input */
+ 	__u32 argsz;		/* Structure length */
+-	__u32 flags;		/* Zero for now */
++	__u32 flags;
++#define DFL_DMA_MAP_FLAG_READ	(1 << 0)/* readable from device */
++#define DFL_DMA_MAP_FLAG_WRITE	(1 << 1)/* writable from device */
+ 	__u64 user_addr;        /* Process virtual address */
+ 	__u64 length;           /* Length of mapping (bytes)*/
+ 	/* Output */
+-- 
+2.34.1
+

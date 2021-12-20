@@ -1,0 +1,183 @@
+From 9d5f55de5fcb469c941f18c89f99cfc9c6249414 Mon Sep 17 00:00:00 2001
+From: Russ Weight <russell.h.weight@intel.com>
+Date: Wed, 28 Oct 2020 15:50:53 -0700
+Subject: [PATCH 35/39] fpga: sec-mgr: add image_load sysfs support
+
+Add a bmc_image_load sysfs file to the update directory.
+This file can be written to trigger a reload of the BMC
+image.
+
+Signed-off-by: Russ Weight <russell.h.weight@intel.com>
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+---
+ .../ABI/testing/sysfs-class-fpga-sec-mgr      | 21 +++++++
+ drivers/fpga/fpga-sec-mgr.c                   | 55 +++++++++++++++++++
+ include/linux/fpga/fpga-sec-mgr.h             | 15 +++++
+ 3 files changed, 91 insertions(+)
+
+diff --git a/Documentation/ABI/testing/sysfs-class-fpga-sec-mgr b/Documentation/ABI/testing/sysfs-class-fpga-sec-mgr
+index 5a2dad0d0941..a153a274cd51 100644
+--- org/Documentation/ABI/testing/sysfs-class-fpga-sec-mgr
++++ new/Documentation/ABI/testing/sysfs-class-fpga-sec-mgr
+@@ -141,3 +141,24 @@ Description:	Read-only. Returns a 64 bit error value providing
+ 		If this file is read while a secure update is in
+ 		progress, then the read will fail with EBUSY.
+ 		Format: "0x%llx".
++
++What: 		/sys/class/fpga_sec_mgr/fpga_secX/update/available_images
++Date:		Sep 2020
++KernelVersion:  5.10
++Contact:	Russ Weight <russell.h.weight@intel.com>
++Description:	Read-only. This file returns a space separated list of
++		key words that may be written into the image_load file
++		described below. These keywords decribe an FPGA, BMC,
++		or firmware image in FLASH or EEPROM storage that may
++		be loaded.
++
++What: 		/sys/class/fpga_sec_mgr/fpga_secX/update/image_load
++Date:		Sep 2020
++KernelVersion:  5.10
++Contact:	Russ Weight <russell.h.weight@intel.com>
++Description:	Write-only. A key word may be written to this file to
++		trigger a reload of an FPGA, BMC, or firmware image from
++		FLASH or EEPROM. Refer to the available_images file for a
++		list of supported key words for the underlying device.
++		Writing an unsupported string to this file will result in
++		EINVAL being returned.
+diff --git a/drivers/fpga/fpga-sec-mgr.c b/drivers/fpga/fpga-sec-mgr.c
+index 7ea60147b248..72b61dc173db 100644
+--- org/drivers/fpga/fpga-sec-mgr.c
++++ new/drivers/fpga/fpga-sec-mgr.c
+@@ -465,6 +465,43 @@ static ssize_t cancel_store(struct device *dev, struct device_attribute *attr,
+ }
+ static DEVICE_ATTR_WO(cancel);
+ 
++static ssize_t available_images_show(struct device *dev,
++				     struct device_attribute *attr, char *buf)
++{
++	struct fpga_sec_mgr *smgr = to_sec_mgr(dev);
++	const struct image_load *hndlr;
++	ssize_t count = 0;
++
++	for (hndlr = smgr->sops->image_load; hndlr->name; hndlr++) {
++		count += scnprintf(buf + count, PAGE_SIZE - count,
++				   "%s ", hndlr->name);
++	}
++
++	buf[count - 1] = '\n';
++
++	return count;
++}
++static DEVICE_ATTR_RO(available_images);
++
++static ssize_t image_load_store(struct device *dev,
++				struct device_attribute *attr,
++				const char *buf, size_t count)
++{
++	struct fpga_sec_mgr *smgr = to_sec_mgr(dev);
++	const struct image_load *hndlr;
++	int ret = -EINVAL;
++
++	for (hndlr = smgr->sops->image_load; hndlr->name; hndlr++) {
++		if (sysfs_streq(buf, hndlr->name)) {
++			ret = hndlr->load_image(smgr);
++			break;
++		}
++	}
++
++	return ret ? : count;
++}
++static DEVICE_ATTR_WO(image_load);
++
+ static umode_t
+ sec_mgr_update_visible(struct kobject *kobj, struct attribute *attr, int n)
+ {
+@@ -473,6 +510,11 @@ sec_mgr_update_visible(struct kobject *kobj, struct attribute *attr, int n)
+ 	if (attr == &dev_attr_hw_errinfo.attr && !smgr->sops->get_hw_errinfo)
+ 		return 0;
+ 
++	if ((!smgr->sops->image_load || !smgr->sops->image_load->name) &&
++	    (attr == &dev_attr_available_images.attr ||
++	     attr == &dev_attr_image_load.attr))
++		return 0;
++
+ 	return attr->mode;
+ }
+ 
+@@ -483,6 +525,8 @@ static struct attribute *sec_mgr_update_attrs[] = {
+ 	&dev_attr_error.attr,
+ 	&dev_attr_remaining_size.attr,
+ 	&dev_attr_hw_errinfo.attr,
++	&dev_attr_available_images.attr,
++	&dev_attr_image_load.attr,
+ 	NULL,
+ };
+ 
+@@ -569,6 +613,7 @@ struct fpga_sec_mgr *
+ fpga_sec_mgr_create(struct device *dev, const char *name,
+ 		    const struct fpga_sec_mgr_ops *sops, void *priv)
+ {
++	const struct image_load *hndlr;
+ 	struct fpga_sec_mgr *smgr;
+ 	int id, ret;
+ 
+@@ -587,6 +632,16 @@ fpga_sec_mgr_create(struct device *dev, const char *name,
+ 		return NULL;
+ 	}
+ 
++	if (sops->image_load) {
++		for (hndlr = sops->image_load; hndlr->name; hndlr++) {
++			if (!hndlr->load_image) {
++				dev_err(dev, "No image_load trigger for %s\n",
++					hndlr->name);
++				return ERR_PTR(-EINVAL);
++			}
++		}
++	}
++
+ 	if (!name || !strlen(name)) {
+ 		dev_err(dev, "Attempt to register with no name!\n");
+ 		return NULL;
+diff --git a/include/linux/fpga/fpga-sec-mgr.h b/include/linux/fpga/fpga-sec-mgr.h
+index 697cf28b6a99..4a979b17ab27 100644
+--- org/include/linux/fpga/fpga-sec-mgr.h
++++ new/include/linux/fpga/fpga-sec-mgr.h
+@@ -27,6 +27,16 @@ enum fpga_sec_err {
+ 	FPGA_SEC_ERR_MAX
+ };
+ 
++/**
++ * struct image_load - device specific image-load triggers
++ * @name:	    Required: keyword used to enable the trigger
++ * @load_image:	    Required: pointer to the trigger callback function
++ */
++struct image_load {
++	const char *name;
++	int (*load_image)(struct fpga_sec_mgr *smgr);
++};
++
+ /**
+  * struct fpga_sec_mgr_ops - device specific operations
+  * @user_flash_count:	    Optional: Return sysfs string output for FPGA
+@@ -63,6 +73,10 @@ enum fpga_sec_err {
+  * @get_hw_errinfo:	    Optional: Return u64 hw specific error info.
+  *			    The software err_code may used to determine
+  *			    whether the hw error info is applicable.
++ * @image_load:		    pointer to array of image_load structures,
++ *			    { } member terminated. These structures describe
++ *			    image load triggers for BMC, FPGA, or firmware
++ *			    images.
+  */
+ struct fpga_sec_mgr_ops {
+ 	int (*user_flash_count)(struct fpga_sec_mgr *smgr);
+@@ -91,6 +105,7 @@ struct fpga_sec_mgr_ops {
+ 	void (*cleanup)(struct fpga_sec_mgr *smgr);
+ 	enum fpga_sec_err (*cancel)(struct fpga_sec_mgr *smgr);
+ 	u64 (*get_hw_errinfo)(struct fpga_sec_mgr *smgr);
++	struct image_load *image_load;	/* terminated with { } member */
+ };
+ 
+ /* Update progress codes */
+-- 
+2.34.1
+

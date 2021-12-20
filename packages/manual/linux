@@ -120,6 +120,13 @@ bootstrap_kernel_build "${workingDir}" "${baseDir}"
 integrate_aufs5_patch "${workingDir}" "${kernelSrcDir}"
 set_garden_linux_abi "${workingDir}" "${kernelSrcDir}"
 apply_quilt_series "${baseDir}" "${kernelSrcDir}"
+
+echo '### add own patches'
+cp -r ${baseDir}/patches/${KERNEL_VERSION}/gardenlinux ${kernelSrcDir}/debian/patches/
+find ${baseDir}/patches/${KERNEL_VERSION}/gardenlinux -type f -name '*.patch' -printf 'gardenlinux/%P\n' | sort >> ${kernelSrcDir}/debian/patches/series
+
+
+
 setup_certificates "${workingDir}" "${kernelSrcDir}" "${CERT_DIR}"
 populate_changelog "${workingDir}" "${kernelSrcDir}"
 install_debian_conform_orig "${workingDir}" "${kernelSrcDir}"

@@ -1,0 +1,58 @@
+From 664ce3c34e401d107fcfc4e2a8c2e4f7fd0a0c65 Mon Sep 17 00:00:00 2001
+From: Xu Yilun <yilun.xu@intel.com>
+Date: Tue, 21 Apr 2020 22:51:00 +0800
+Subject: [PATCH 11/39] fpga: dfl: add an API to get the base device for dfl
+ device
+
+This patch adds an API for dfl devices to find which physical device
+owns the DFL.
+
+This patch makes preparation for supporting DFL Ether Group private
+feature driver. It uses this information to determine which retimer
+device physically connects to which ether group.
+
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+Reviewed-by: Matthew Gerlach <matthew.gerlach@linux.intel.com>
+----
+v2: change commit msg according to Matthew's suggestion.
+v3: no change.
+---
+ drivers/fpga/dfl.c  | 9 +++++++++
+ include/linux/dfl.h | 1 +
+ 2 files changed, 10 insertions(+)
+
+diff --git a/drivers/fpga/dfl.c b/drivers/fpga/dfl.c
+index e7855b721fd0..cf93cf4b0c75 100644
+--- org/drivers/fpga/dfl.c
++++ new/drivers/fpga/dfl.c
+@@ -558,6 +558,15 @@ int dfl_dev_get_vendor_net_cfg(struct dfl_device *dfl_dev)
+ }
+ EXPORT_SYMBOL_GPL(dfl_dev_get_vendor_net_cfg);
+ 
++struct device *dfl_dev_get_base_dev(struct dfl_device *dfl_dev)
++{
++	if (!dfl_dev || !dfl_dev->cdev)
++		return NULL;
++
++	return dfl_dev->cdev->parent;
++}
++EXPORT_SYMBOL_GPL(dfl_dev_get_base_dev);
++
+ #define is_header_feature(feature) ((feature)->id == FEATURE_ID_FIU_HEADER)
+ 
+ /**
+diff --git a/include/linux/dfl.h b/include/linux/dfl.h
+index 5ee2b1e87081..dd313f24efef 100644
+--- org/include/linux/dfl.h
++++ new/include/linux/dfl.h
+@@ -68,6 +68,7 @@ struct dfl_driver {
+ #define to_dfl_drv(d) container_of(d, struct dfl_driver, drv)
+ 
+ int dfl_dev_get_vendor_net_cfg(struct dfl_device *dfl_dev);
++struct device *dfl_dev_get_base_dev(struct dfl_device *dfl_dev);
+ 
+ /*
+  * use a macro to avoid include chaining to get THIS_MODULE.
+-- 
+2.34.1
+

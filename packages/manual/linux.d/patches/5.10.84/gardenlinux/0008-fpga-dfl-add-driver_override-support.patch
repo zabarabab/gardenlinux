@@ -1,0 +1,157 @@
+From 8d4b8d6088974c1810b74f9b6c739c690cd7fbfe Mon Sep 17 00:00:00 2001
+From: Xu Yilun <yilun.xu@intel.com>
+Date: Fri, 19 Jun 2020 11:14:31 +0800
+Subject: [PATCH 08/39] fpga: dfl: add driver_override support
+
+Add support for overriding the default matching of a dfl device to a dfl
+driver. It follows the same way that can be used for PCI and platform
+devices. This patch adds the 'driver_override' sysfs file.
+
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+----
+v2: use sysfs_emit instead of sprintf.
+    some minor fixes.
+---
+ Documentation/ABI/testing/sysfs-bus-dfl | 21 ++++++++++
+ drivers/fpga/dfl.c                      | 54 ++++++++++++++++++++++++-
+ include/linux/dfl.h                     |  2 +
+ 3 files changed, 76 insertions(+), 1 deletion(-)
+
+diff --git a/Documentation/ABI/testing/sysfs-bus-dfl b/Documentation/ABI/testing/sysfs-bus-dfl
+index b0265ab17200..679981eec897 100644
+--- org/Documentation/ABI/testing/sysfs-bus-dfl
++++ new/Documentation/ABI/testing/sysfs-bus-dfl
+@@ -15,3 +15,24 @@ Description:	Read-only. It returns feature identifier local to its DFL FIU
+ 		type.
+ 
+ 		Format: 0x%x
++
++What:		/sys/bus/dfl/devices/.../driver_override
++Date:		Oct 2020
++KernelVersion:	5.11
++Contact:	Xu Yilun <yilun.xu@intel.com>
++Description:	This file allows the driver for a device to be specified which
++		will override the standard ID table matching. When specified,
++		only a driver with a name matching the value written to
++		driver_override will have an opportunity to bind to the device.
++		The override is specified by writing a string to the
++		driver_override file (echo dfl-uio-pdev > driver_override) and
++		may be cleared with an empty string (echo > driver_override).
++		This returns the device to standard matching rules binding.
++		Writing to driver_override does not automatically unbind the
++		device from its current driver or make any attempt to
++		automatically load the specified driver.  If no driver with a
++		matching name is currently loaded in the kernel, the device
++		will not bind to any driver.  This also allows devices to
++		opt-out of driver binding using a driver_override name such as
++		"none".  Only a single driver may be specified in the override,
++		there is no support for parsing delimiters.
+diff --git a/drivers/fpga/dfl.c b/drivers/fpga/dfl.c
+index 511b20ff35a3..df0ebd2ed0da 100644
+--- org/drivers/fpga/dfl.c
++++ new/drivers/fpga/dfl.c
+@@ -262,6 +262,10 @@ static int dfl_bus_match(struct device *dev, struct device_driver *drv)
+ 	struct dfl_driver *ddrv = to_dfl_drv(drv);
+ 	const struct dfl_device_id *id_entry;
+ 
++	/* When driver_override is set, only bind to the matching driver */
++	if (ddev->driver_override)
++		return !strcmp(ddev->driver_override, drv->name);
++
+ 	id_entry = ddrv->id_table;
+ 	if (id_entry) {
+ 		while (id_entry->feature_id) {
+@@ -303,6 +307,53 @@ static int dfl_bus_uevent(struct device *dev, struct kobj_uevent_env *env)
+ 			      ddev->type, ddev->feature_id);
+ }
+ 
++static ssize_t driver_override_show(struct device *dev,
++				    struct device_attribute *attr, char *buf)
++{
++	struct dfl_device *ddev = to_dfl_dev(dev);
++	ssize_t len;
++
++	device_lock(dev);
++	len = sysfs_emit(buf, "%s\n", ddev->driver_override);
++	device_unlock(dev);
++	return len;
++}
++
++static ssize_t driver_override_store(struct device *dev,
++				     struct device_attribute *attr,
++				     const char *buf, size_t count)
++{
++	struct dfl_device *ddev = to_dfl_dev(dev);
++	char *driver_override, *old, *cp;
++
++	/* We need to keep extra room for a newline */
++	if (count >= (PAGE_SIZE - 1))
++		return -EINVAL;
++
++	driver_override = kstrndup(buf, count, GFP_KERNEL);
++	if (!driver_override)
++		return -ENOMEM;
++
++	cp = strchr(driver_override, '\n');
++	if (cp)
++		*cp = '\0';
++
++	device_lock(dev);
++	old = ddev->driver_override;
++	if (strlen(driver_override)) {
++		ddev->driver_override = driver_override;
++	} else {
++		kfree(driver_override);
++		ddev->driver_override = NULL;
++	}
++	device_unlock(dev);
++
++	kfree(old);
++
++	return count;
++}
++static DEVICE_ATTR_RW(driver_override);
++
+ static ssize_t
+ type_show(struct device *dev, struct device_attribute *attr, char *buf)
+ {
+@@ -324,6 +375,7 @@ static DEVICE_ATTR_RO(feature_id);
+ static struct attribute *dfl_dev_attrs[] = {
+ 	&dev_attr_type.attr,
+ 	&dev_attr_feature_id.attr,
++	&dev_attr_driver_override.attr,
+ 	NULL,
+ };
+ ATTRIBUTE_GROUPS(dfl_dev);
+@@ -469,7 +521,7 @@ static int dfl_devs_add(struct dfl_feature_platform_data *pdata)
+ 
+ int __dfl_driver_register(struct dfl_driver *dfl_drv, struct module *owner)
+ {
+-	if (!dfl_drv || !dfl_drv->probe || !dfl_drv->id_table)
++	if (!dfl_drv || !dfl_drv->probe)
+ 		return -EINVAL;
+ 
+ 	dfl_drv->drv.owner = owner;
+diff --git a/include/linux/dfl.h b/include/linux/dfl.h
+index 7affba2fd545..e1b2471f0f86 100644
+--- org/include/linux/dfl.h
++++ new/include/linux/dfl.h
+@@ -32,6 +32,7 @@ enum dfl_id_type {
+  * @num_irqs: number of IRQs supported by this dfl device.
+  * @cdev: pointer to DFL FPGA container device this dfl device belongs to.
+  * @id_entry: matched id entry in dfl driver's id table.
++ * @driver_override: driver name to force a match
+  */
+ struct dfl_device {
+ 	struct device dev;
+@@ -43,6 +44,7 @@ struct dfl_device {
+ 	unsigned int num_irqs;
+ 	struct dfl_fpga_cdev *cdev;
+ 	const struct dfl_device_id *id_entry;
++	char *driver_override;
+ };
+ 
+ /**
+-- 
+2.34.1
+

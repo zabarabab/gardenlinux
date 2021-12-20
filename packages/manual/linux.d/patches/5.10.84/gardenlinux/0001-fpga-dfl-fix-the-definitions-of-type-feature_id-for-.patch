@@ -1,0 +1,93 @@
+From 986ac76c99741afd8488ced585085b567586d900 Mon Sep 17 00:00:00 2001
+From: Xu Yilun <yilun.xu@intel.com>
+Date: Thu, 24 Sep 2020 14:34:07 +0800
+Subject: [PATCH 01/39] fpga: dfl: fix the definitions of type & feature_id for
+ dfl devices
+
+The value of the field dfl_device.type comes from the 12 bits register
+field DFH_ID according to DFL spec. So this patch changes the definition
+of the type field to u16.
+
+Also it is not necessary to illustrate the valid bits of the type field
+in comments. Instead we should explicitly define the possible values in
+the enumeration type for it, because they are shared by hardware spec.
+We should not let the compiler decide these values.
+
+Similar changes are also applied to dfl_device.feature_id.
+
+This patch also fixed the MODALIAS format according to the changes
+above.
+
+Signed-off-by: Xu Yilun <yilun.xu@intel.com>
+----
+v9: no change
+v10: no change
+---
+ drivers/fpga/dfl.c |  3 +--
+ drivers/fpga/dfl.h | 14 +++++++-------
+ 2 files changed, 8 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/fpga/dfl.c b/drivers/fpga/dfl.c
+index b450870b75ed..5a6ba3b2fa05 100644
+--- org/drivers/fpga/dfl.c
++++ new/drivers/fpga/dfl.c
+@@ -298,8 +298,7 @@ static int dfl_bus_uevent(struct device *dev, struct kobj_uevent_env *env)
+ {
+ 	struct dfl_device *ddev = to_dfl_dev(dev);
+ 
+-	/* The type has 4 valid bits and feature_id has 12 valid bits */
+-	return add_uevent_var(env, "MODALIAS=dfl:t%01Xf%03X",
++	return add_uevent_var(env, "MODALIAS=dfl:t%04Xf%04X",
+ 			      ddev->type, ddev->feature_id);
+ }
+ 
+diff --git a/drivers/fpga/dfl.h b/drivers/fpga/dfl.h
+index 5dc758f655b7..ac373b1fcff9 100644
+--- org/drivers/fpga/dfl.h
++++ new/drivers/fpga/dfl.h
+@@ -520,19 +520,19 @@ long dfl_feature_ioctl_set_irq(struct platform_device *pdev,
+  * enum dfl_id_type - define the DFL FIU types
+  */
+ enum dfl_id_type {
+-	FME_ID,
+-	PORT_ID,
++	FME_ID = 0,
++	PORT_ID = 1,
+ 	DFL_ID_MAX,
+ };
+ 
+ /**
+  * struct dfl_device_id -  dfl device identifier
+- * @type: contains 4 bits DFL FIU type of the device. See enum dfl_id_type.
+- * @feature_id: contains 12 bits feature identifier local to its DFL FIU type.
++ * @type: DFL FIU type of the device. See enum dfl_id_type.
++ * @feature_id: feature identifier local to its DFL FIU type.
+  * @driver_data: driver specific data.
+  */
+ struct dfl_device_id {
+-	u8 type;
++	u16 type;
+ 	u16 feature_id;
+ 	unsigned long driver_data;
+ };
+@@ -543,7 +543,7 @@ struct dfl_device_id {
+  * @dev: generic device interface.
+  * @id: id of the dfl device.
+  * @type: type of DFL FIU of the device. See enum dfl_id_type.
+- * @feature_id: 16 bits feature identifier local to its DFL FIU type.
++ * @feature_id: feature identifier local to its DFL FIU type.
+  * @mmio_res: mmio resource of this dfl device.
+  * @irqs: list of Linux IRQ numbers of this dfl device.
+  * @num_irqs: number of IRQs supported by this dfl device.
+@@ -553,7 +553,7 @@ struct dfl_device_id {
+ struct dfl_device {
+ 	struct device dev;
+ 	int id;
+-	u8 type;
++	u16 type;
+ 	u16 feature_id;
+ 	struct resource mmio_res;
+ 	int *irqs;
+-- 
+2.34.1
+

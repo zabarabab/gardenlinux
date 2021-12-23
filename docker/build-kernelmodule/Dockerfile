@@ -4,7 +4,8 @@ FROM	$build_base_image
 # Build Tools
 RUN sudo apt-get update && \
     sudo apt-get install -y \
-		libelf1 git vim build-essential dh-make devscripts dkms
+		libelf1 git vim build-essential dh-make devscripts dkms \
+		rsync
 
 # Required for Garden Linux linux-headers
 COPY certs/ /certs

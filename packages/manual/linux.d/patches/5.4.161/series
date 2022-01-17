@@ -4,6 +4,7 @@ debian/fuzz.patch
 environment/builderror.patch
 
 debian/disable-android.patch
+debian/disable-memcg-kmem.patch
 
 debian/relax.patch
 environment/analogix.patch

@@ -8,8 +8,13 @@ type warn >/dev/null 2>&1 || . /lib/dracut-lib.sh
 shaFile="/root.squashfs.sha256sum"
 squashFile="/tmp/root.squashfs"
 
-# download squashfs
+# if squashfs is bundled into the initrd, just move it to /run
+if [ -f /root.squashfs ]; then
+	mv /root.squashfs /run/root.squashfs
+	exit 0
+fi
 
+# download squashfs
 url=$(getarg gl.url=)
 if [ -z "${url#gl.url=}" ]; then
 	info "gl.url not defined, skipping"
@@ -19,13 +24,6 @@ fi
 if ! curl --globoff --location --retry 3 --fail --show-error "${url}" --output "${squashFile}"; then
        warn "can't fetch the squashfs from ${url#gl.url=}"
        exit 1
-fi       
-
-# FIXME: consider removing this, or check the 0x73717368 magic number, will also make initrd smaller 
-# check if the file is a squashfs
-if ! file -m /usr/lib/file/magic.mgc -b "${squashFile}" | grep -q "Squashfs filesystem" ; then
-	warn "the provided image via gl.url is not a valid squashfs image"
-	exit 1
 fi
 
 # verify sha256

@@ -1,0 +1,49 @@
+name: test reproducible build
+on: [push, pull_request]
+jobs:
+  cert:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: make cert/sign.pub
+      - uses: actions/upload-artifact@v2
+        with:
+          name: cert
+          path: cert
+  build:
+    needs: cert
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [ kvm, metal, gcp, aws, azure, ali, openstack, vmware ]
+        modifier: [ "", "-dev" ]
+        build: [ 0, 1 ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: cert
+          path: cert
+      - run: make ${{ matrix.platform }}${{ matrix.modifier }}
+      - uses: actions/upload-artifact@v2
+        with:
+          name: build_${{ matrix.platform }}${{ matrix.modifier }}_${{ matrix.build }}
+          path: .build
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [ kvm, metal, gcp, aws, azure, ali, openstack, vmware ]
+        modifier: [ "", "-dev" ]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: build_${{ matrix.platform }}${{ matrix.modifier }}_0
+          path: build_0
+      - uses: actions/download-artifact@v2
+        with:
+          name: build_${{ matrix.platform }}${{ matrix.modifier }}_1
+          path: build_1
+      - run: bin/compare_builds.sh build_0 build_1

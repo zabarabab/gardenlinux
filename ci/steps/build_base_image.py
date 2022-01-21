@@ -39,7 +39,7 @@ def build_base_image(
     dockerfile_relpath = os.path.join(repo_dir, "docker", "build-image", "Dockerfile")
     logger.info(f'repo_dir is: {repo_dir}')
 
-    docker_dirs = ['build', 'build-deb', 'build-image']
+    docker_dirs = ['build', 'build-image']
 
     go_files = glob.glob(os.path.join(repo_dir, "bin", '*.go'), recursive=False)
     for f in go_files:
@@ -51,10 +51,7 @@ def build_base_image(
         dockerfile_relpath = os.path.join(repo_dir, "docker", docker_dir, "Dockerfile")
         logger.info(f'---Building now {dockerfile_relpath}')
 
-        if docker_dir == 'build-deb':
-            build_base_image = f'{oci_path}/gardenlinux-build:{version_label}'
-        else:
-            build_base_image = 'debian:testing-slim'
+        build_base_image = 'debian:testing-slim'
 
         context_dir = os.path.join(repo_dir, "docker", docker_dir)
         logger.info(f'---Using base image {build_base_image}')

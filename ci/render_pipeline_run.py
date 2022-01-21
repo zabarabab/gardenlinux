@@ -92,13 +92,6 @@ def get_build_image(
     return f'{oci_path}/gardenlinux-build-image:{version_label}'
 
 
-def get_deb_build_image(
-    oci_path: str,
-    version_label: str,
-):
-    return f'{oci_path}/gardenlinux-build-deb:{version_label}'
-
-
 def get_version(
     args: typing.Dict[str, str]
 ):
@@ -146,10 +139,8 @@ def get_common_parameters(
         print('Found gardenlinux_base_image in args, force using base-image: '
             f'{args["gardenlinux_base_image"]}')
         path, label = args['gardenlinux_base_image'].split(':')
-        build_deb_image = path + '/gardenlinux-build-deb:' + label
         build_image = path + '/gardenlinux-build-image:' + label
     else:
-        build_deb_image = get_deb_build_image(args['oci_path'], base_version_label)
         build_image = get_build_image(args['oci_path'], base_version_label)
 
     # for git-url rename arg git_url to giturl:
@@ -162,7 +153,6 @@ def get_common_parameters(
         NamedParam(name='cicd_cfg_name', value=args['cicd_cfg']),
         get_param_from_arg(args, 'committish'),
         get_param_from_arg(args, 'disable_notifications'),
-        NamedParam(name='gardenlinux_build_deb_image', value=build_deb_image),
         get_param_from_arg(args, 'gardenlinux_epoch'),
         git_url_param,
         get_param_from_arg(args, 'oci_path'),
